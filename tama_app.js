@@ -132,27 +132,44 @@ function hopOnce(fig, shadow, h) {
   shadow?.animate([
     { transform: "scaleX(1)", opacity: 1 },
     { offset: 0.2, transform: "scaleX(1.06)", opacity: 1 },
-    { offset: 0.52, transform: `scaleX(${1 - h * 1.6})`, opacity: 0.5 },
+    { offset: 0.52, transform: `scaleX(${Math.max(0.45, 1 - h * 1.2)})`, opacity: 0.5 },
     { offset: 0.76, transform: "scaleX(1.08)", opacity: 1 },
     { transform: "scaleX(1)", opacity: 1 }
   ], { duration: 1150 });
   return a.finished.catch(() => {
   });
 }
-function idle(fig, shadow, happy) {
+function approach(fig, shadow, face) {
+  const near = "translateY(58%) scale(2.3,2.3)";
+  face?.({ eye: "round" });
+  const a = fig.animate([
+    { transform: "translateY(0) scale(1,1)", easing: "cubic-bezier(.3,0,.3,1)" },
+    { offset: 0.26, transform: near, easing: SINE },
+    { offset: 0.4, transform: `${near} rotate(-5deg)`, easing: SINE },
+    { offset: 0.56, transform: `${near} rotate(5deg)`, easing: SINE },
+    { offset: 0.7, transform: near, easing: "cubic-bezier(.4,0,.6,1)" },
+    { transform: "translateY(0) scale(1,1)" }
+  ], { duration: 5400 });
+  shadow?.animate([{ transform: "translateY(0) scale(1,1)" }, { offset: 0.26, transform: "translateY(420%) scale(2.3,1.8)" }, { offset: 0.7, transform: "translateY(420%) scale(2.3,1.8)" }, { transform: "translateY(0) scale(1,1)" }], { duration: 5400 });
+  return a.finished.then(() => face?.({})).catch(() => {
+  });
+}
+function idle(fig, shadow, happy, face = null) {
   const my = live, noise = pink();
-  let untilHop = happy ? 1 : 4 + Math.floor(Math.random() * 4);
+  let untilHop = happy ? 1 : 2 + Math.floor(Math.random() * 2), side = 1;
   const breath = () => {
     if (my !== live || !fig.isConnected) return;
-    const dur = (happy ? 1600 : 5e3) * (1 + 0.18 * noise()), amp = 0.028 * (1 + 0.35 * noise());
-    const a = fig.animate([{ transform: "scale(1,1)", easing: SINE }, { offset: 0.4, transform: `scale(${1 - amp * 0.8},${1 + amp})`, easing: SINE }, { transform: "scale(1,1)" }], { duration: dur });
+    const dur = (happy ? 1600 : 4200) * (1 + 0.18 * noise()), amp = 0.06 * (1 + 0.3 * noise()), lean = 1.6 * side * (1 + 0.4 * noise());
+    side = -side;
+    const a = fig.animate([{ transform: "rotate(0deg) scale(1,1)", easing: SINE }, { offset: 0.4, transform: `rotate(${lean}deg) scale(${1 - amp * 0.8},${1 + amp})`, easing: SINE }, { transform: "rotate(0deg) scale(1,1)" }], { duration: dur });
     shadow?.animate([{ transform: "scaleX(1)", opacity: 1 }, { offset: 0.4, transform: "scaleX(.96)", opacity: 0.85 }, { transform: "scaleX(1)", opacity: 1 }], { duration: dur });
     a.finished.then(() => {
       if (my !== live) return;
+      if (!happy && Math.random() < 0.04) return approach(fig, shadow, face).then(breath);
       untilHop -= 1;
       if (untilHop > 0) return breath();
-      untilHop = happy ? 1 : 3 + Math.floor(Math.random() * 5);
-      hopOnce(fig, shadow, happy ? 0.24 : 0.12).then(breath);
+      untilHop = happy ? 1 : 2 + Math.floor(Math.random() * 3);
+      hopOnce(fig, shadow, happy ? 0.45 : 0.3).then(breath);
     }).catch(() => {
     });
   };
@@ -222,7 +239,8 @@ function setMotion(kind) {
   show(frames[0]);
   const my = live;
   if (look !== "egg") chatter(slot.querySelector(".say"), my);
-  if ((kind === "normal" || kind === "happy") && look !== "egg" && !calm() && fig.animate) idle(fig, shadow, kind === "happy");
+  if ((kind === "normal" || kind === "happy") && look !== "egg" && !calm() && fig.animate) idle(fig, shadow, kind === "happy", look === "hako" ? show : null);
+  app.peek = () => approach(fig, shadow, look === "hako" ? show : null);
   if (look !== "hako" || calm()) return;
   if (kind === "normal") {
     const blink = (again) => {
@@ -425,7 +443,7 @@ function renderChrome() {
       }
     };
   }
-  renderGarden(app.stats, app.moods, app.box);
+  renderGarden(app.stats, app.moods, app.box, app.F);
 }
 const MOTES = [[14, 22, 0], [31, 48, 5], [58, 18, 9], [72, 40, 3], [88, 28, 12]].map(([x, y, d]) => `<i class="mote" style="left:${x}%;top:${y}%;animation-delay:${d}s"></i>`).join("");
 const NO_F = { items: [], floor_slots: [], wall_slots: [] };

@@ -55,8 +55,8 @@ function hakoRows(pub, over = {}) {
   return [rows, d.color];
 }
 const GHOST = { body: "tall", eye: "line", mouth: "none", pattern: "plain", leg: "float", eye_gap: 1 };
-function ghostRows(pub) {
-  const [rows, d] = dotRows(pub, { ...GHOST, accessory: tamaAccessory(pub) });
+function ghostRows(pub, accessory = tamaAccessory(pub)) {
+  const [rows, d] = dotRows(pub, { ...GHOST, accessory });
   const w = rows[0].length;
   const hem = (on) => Array.from({ length: w }, (_, x) => on(x) ? "#" : " ").join("");
   rows[rows.length - 1] = hem((x) => x === 0 || x === w - 1 || x % 4 === 3 || x % 4 === 0);
@@ -130,6 +130,10 @@ function faceSvg(did, px = 2, theme = "css") {
   const [rows, color] = p ? faceRows(p) : [dotRows(ZERO, FACE)[0], EGG_COLOR];
   return fig(rows, color, px, theme);
 }
+function castSvg(kind, px = 4, color = ICON_COLOR, theme = "css") {
+  const rows = kind === "egg" ? EGG_ROWS : kind === "baby" ? [...dotRows(ZERO, ICON)[0].slice(0, 2), ...pad(BABY_BODY, 18)] : kind === "ghost" ? ghostRows(ZERO, "ribbon")[0] : kind === "face" ? dotRows(ZERO, FACE)[0] : dotRows(ZERO, ICON)[0];
+  return fig(rows, kind === "egg" ? EGG_COLOR : color, px, theme);
+}
 function iconSvg(px = 2, theme = "css") {
   const [rows, color] = iconRows();
   return fig(rows, color, px, theme);
@@ -149,6 +153,7 @@ export {
   PALE,
   THEMES,
   babyRows,
+  castSvg,
   faceRows,
   faceSvg,
   ghostRows,
