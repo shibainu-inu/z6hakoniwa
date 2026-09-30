@@ -19,7 +19,8 @@ function lifeState(events, now, box) {
     zeroSince: null,
     grave: false,
     graveAt: null,
-    days: new Set()
+    days: new Set(),
+    cares: 0
   });
   const advance = (t) => {
     if (!s || s.grave || t <= s.at) return;
@@ -62,6 +63,7 @@ function lifeState(events, now, box) {
     s.zeroSince = s.hunger > 0 ? null : s.zeroSince ?? e.ms;
     s.days.add(localDay(e.ms, box));
     s.lastCare = e.ms;
+    s.cares += 1;
   }
   if (!s) return { born: false };
   advance(now);
@@ -89,10 +91,18 @@ function lifeState(events, now, box) {
     rebirths,
     outsToday,
     careDays: days.length,
-    lastCare: s.lastCare ?? null
+    lastCare: s.lastCare ?? null,
+    cares: s.cares,
+    stage: growthStage(s.cares, days.length, now - s.bornAt, box)
   };
 }
 const round2 = (x) => Math.round(x * 100) / 100;
+function growthStage(cares, careDays, ageMs, box) {
+  const h = ageMs / HOUR;
+  if (cares < Number(box.hatch_cares ?? 0) || h < Number(box.hatch_hours ?? 0)) return "egg";
+  if (h < Number(box.grow_hours ?? 0) || careDays < Number(box.grow_care_days ?? 0)) return "baby";
+  return "hako";
+}
 function playPayout(contract, table) {
   const hex = String(contract).replace(/^0x/, "");
   if (!/^[0-9a-f]{8}/i.test(hex)) return null;
@@ -178,6 +188,7 @@ export {
   checkLines,
   collapseSpace,
   fillArticle,
+  growthStage,
   jobId,
   jobKind,
   lifeState,

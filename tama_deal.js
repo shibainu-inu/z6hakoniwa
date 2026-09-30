@@ -26,6 +26,7 @@ class Deal {
   set(stage, extra = {}) {
     this.st = { ...this.st ?? {}, ...extra, stage };
     this.save();
+    this.onEvent({ type: "stage", stage });
   }
   note(text) {
     this.onEvent({ type: "note", text });
