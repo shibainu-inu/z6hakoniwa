@@ -48,8 +48,8 @@ function renderGarden(stats, moods, box) {
     const tail = e.kind === "play" ? `<span class="${e.delta >= 0 ? "up" : "down"}">${e.delta >= 0 ? "+" : ""}${e.delta}</span>` : `<span class="dim">${ago(e.ms, now)}</span>`;
     return `<span class="item">${avatar(e.did, 2)}<span class="mono">${esc(short(e.did))}</span>${label} ${tail}</span>`;
   });
-  if (tw) items.unshift(`<span class="item"><span class="mono">\u8857</span>${esc(moodLabel(tw))} <b class="mono">${esc(tw.value)}</b><span class="dim mono">\uFF08\u666E\u6BB5 ${esc(tw.base)}\uFF09</span></span>`);
-  else if (moods) items.unshift(`<span class="item"><span class="mono">\u8857</span>\u9727\u3067\u3088\u304F\u898B\u3048\u306A\u3044</span>`);
+  if (tw) items.push(`<span class="item"><span class="mono">\u8857</span>${esc(moodLabel(tw))} <b class="mono">${esc(tw.value)}</b><span class="dim mono">\uFF08\u666E\u6BB5 ${esc(tw.base)}\uFF09</span></span>`);
+  else if (moods) items.push(`<span class="item"><span class="mono">\u8857</span>\u9727\u3067\u3088\u304F\u898B\u3048\u306A\u3044</span>`);
   if (!items.length) items.push(`<span class="item">\u307E\u3060\u8AB0\u3082\u3044\u306A\u3044\u5EAD\u3067\u3059\u3002\u6700\u521D\u306E HAKO \u3092\u8FCE\u3048\u3066\u304F\u3060\u3055\u3044</span>`);
   const t = $("ticker");
   if (t) t.innerHTML = items.join("") + items.join("");

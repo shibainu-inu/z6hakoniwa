@@ -148,7 +148,7 @@ function scrapSvg(F, did, n, title, o = {}) {
   const cardW = Math.max(600, cx - 92 + 32);
   const card = `<g transform="rotate(1.5 380 520)"><rect x="76" y="466" width="${cardW}" height="130" rx="18" fill="#16151c" opacity="0.10"/><rect x="70" y="458" width="${cardW}" height="130" rx="18" fill="#ffffff" stroke="#eae6db" stroke-width="2"/>` + (o.grave ? `<text x="92" y="516" font-family="sans-serif" font-weight="800" font-size="24" fill="${FRAME.ink}">\u304A\u5893\u3067\u4F11\u3093\u3067\u3044\u307E\u3059</text>` : meter("\u304A\u306A\u304B", o.hunger ?? 0, o.hungerMax ?? 100, 92) + meter("\u3054\u304D\u3052\u3093", o.mood ?? 0, o.moodMax ?? 100, 352)) + chips + `</g>`;
   const [irows, icolor] = iconRows();
-  const logo = `<rect x="44" y="40" width="250" height="72" rx="20" fill="#ffffff" stroke="#eae6db" stroke-width="2"/>${fig(irows, icolor, 60, 52, 3)}<text x="126" y="89" font-family="sans-serif" font-weight="800" font-size="36" fill="${FRAME.ink}">\u30CF\u30B3\u30CB\u30EF</text>`;
+  const logo = `<g opacity="0.72">${fig(irows, icolor, 1010, 558, 2)}<text x="1054" y="584" font-family="sans-serif" font-weight="800" font-size="22" fill="${FRAME.sub}">\u30CF\u30B3\u30CB\u30EF</text></g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="${FRAME.bg}"/><g transform="translate(0 -60) scale(${k})">${room}</g>${hako}${paper}${card}${logo}<rect x="12" y="12" width="${W - 24}" height="${H - 24}" fill="none" stroke="${FRAME.edge}" stroke-width="24"/></svg>`;
 }
 function svgToPng(svg, w = 1200, h = 630) {

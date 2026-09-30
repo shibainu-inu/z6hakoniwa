@@ -76,8 +76,14 @@ function opLine(room, text) {
 }
 function logOp(line) {
   app.ops = [...app.ops ?? [], { line, at: Date.now() }].slice(-3);
-  const el = $("ops");
-  if (el) el.innerHTML = opsHtml();
+  showOps();
+}
+function showOps() {
+  const el = $("ops"), h = opsHtml();
+  if (el && app.opsShown !== h) {
+    el.innerHTML = h;
+    app.opsShown = h;
+  }
 }
 const opsHtml = () => (app.ops ?? []).map((x) => `<span class="${Date.now() - x.at > 12e3 ? "old" : ""}">\u203A ${esc(x.line)}</span>`).join("");
 function watched(signer) {
@@ -251,6 +257,7 @@ function render() {
   const st = lifeState(m.events, Date.now(), app.box);
   app.st = st;
   app.balance = m.balance;
+  if (app.why && app.whyAt && Date.now() - app.whyAt > 9e3) app.why = "";
   if (!st.born) return renderEgg();
   const fee = Number(app.box.reborn_price ?? 0);
   const graveNote = st.grave ? `<p class="note">\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306B\u306F ${fmt(fee)} $PAPER \u304B\u304B\u308A\u307E\u3059${m.balance < fee ? `\uFF08\u3044\u307E\u306F\u8DB3\u308A\u306A\u3044\u306E\u3067\u3001\u8CA1\u5E03\u304C 0 \u306B\u306A\u3063\u3066\u751F\u307E\u308C\u5909\u308F\u308A\u307E\u3059\uFF09` : ""}\u3002\u304A\u5893\u306E\u9593\u306F\u3001\u304A\u3067\u304B\u3051\u3068\u3042\u305D\u3076\u306F\u3067\u304D\u307E\u305B\u3093\u3002</p>` : "";
@@ -262,9 +269,9 @@ function render() {
     w.title = m.fromFold ? "\u8CA1\u5E03" : "\u5E33\u7C3F\u306B\u8F09\u308B\u307E\u3067\u306E\u898B\u8FBC\u307F";
   }
   const acts = actionsHtml(st, m);
-  view.innerHTML = `
+  const html = `
     <section class="card" id="me">
-      <div id="stage" class="stage"><div class="bg">${roomBg(m, st)}</div>${said ? `<div class="say">${esc(said)}</div>` : ""}<div id="slot"></div><div class="ops mono" id="ops" aria-hidden="true">${opsHtml()}</div></div>
+      <div id="stage" class="stage"><div class="bg">${roomBg(m, st)}</div>${said ? `<div class="say">${esc(said)}</div>` : ""}<div id="slot"></div><div class="ops mono" id="ops" aria-hidden="true"></div></div>
       ${waitHtml()}
       <div class="who"><span class="name">HAKO <span class="mono">${esc(app.did.slice(-8))}</span></span><span class="chip state"><span class="dot" style="background:${st.grave ? "var(--dim)" : st.hunger >= 60 ? "var(--good)" : st.hunger >= 30 ? "var(--mid)" : "var(--bad)"}"></span>${stateWord(st)}</span></div>
       ${st.grave ? "" : `<div class="meters">${meter("\u304A\u306A\u304B", st.hunger, app.box.hunger_max)}${meter("\u3054\u304D\u3052\u3093", st.mood, app.box.mood_max)}</div>`}
@@ -277,15 +284,34 @@ function render() {
       ${!st.grave && st.stage !== "hako" && app.box.grow_hours ? `<p class="hint">${Math.round(app.box.grow_hours / 24)} \u65E5\u80B2\u3066\u308B\u3068\u2026\uFF1F</p>` : ""}
       ${graveNote}
       <div class="actions main">${acts}</div>
-      <p id="why" class="why">${esc(app.why ?? "")}</p>
+      <p id="why" class="why${app.why && app.whyBad ? " bad" : ""}">${esc(app.why ?? "")}</p>
       <div id="said"></div>
       ${roomInfo(m, st)}
     </section>`;
+  app.m = m;
+  if (app.viewHtml === html && $("stage")) {
+    showOps();
+    setMotion(motionOf(st));
+    renderSaid(m.fold);
+    return;
+  }
+  app.viewHtml = html;
+  view.innerHTML = html;
+  app.opsShown = null;
+  showOps();
   app.motion = null;
   setMotion(motionOf(st));
   for (const b of document.querySelectorAll("#reborn")) b.onclick = reborn;
   const cam = $("snapshot");
-  if (cam) cam.onclick = () => snapshot(m, st);
+  if (cam) cam.onclick = () => snapshot(app.m, app.st);
+  const sk = $("savekey");
+  if (sk) sk.onclick = () => {
+    const rec = K.loadRec();
+    if (rec) {
+      K.downloadRec(rec);
+      say("\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3068\u5225\u306E\u5834\u6240\u306B\u3057\u307E\u3063\u3066\u304F\u3060\u3055\u3044", false);
+    }
+  };
   for (const b of document.querySelectorAll("button[data-kind]")) b.onclick = () => startDeal(b.dataset.kind);
   renderSaid(m.fold);
 }
@@ -294,21 +320,28 @@ function actionsHtml(st, m) {
   const price = { meal: app.box.meal_price, out: app.box.out_price, play: app.box.play_stake };
   return dealKinds.map(([k, label]) => {
     const why = actionBlock(k, st, m);
-    return `<button class="btn" data-kind="${k}" style="--c:${DOT[k]}" ${why ? `disabled title="${esc(why)}"` : ""}><span class="dot" style="background:${DOT[k]}"></span>${label} <span class="price">${fmt(price[k])} $PAPER</span></button>`;
+    return `<button class="btn${why ? " off" : ""}" data-kind="${k}" style="--c:${DOT[k]}" ${why ? `aria-disabled="true" title="${esc(why)}"` : ""}><span class="dot" style="background:${DOT[k]}"></span>${label} <span class="price">${fmt(price[k])} $PAPER</span></button>`;
   }).join("");
 }
 function renderChrome() {
   if (!document.body.dataset.tabs) {
     document.body.dataset.tabs = "1";
+    const TABS = ["me", "garden", "story", "how"];
     const go = (t) => {
       document.body.dataset.tab = t;
-      for (const a of document.querySelectorAll("[data-tab-to]")) a.classList.toggle("on", a.dataset.tabTo === t);
+      for (const a of document.querySelectorAll("[data-tab-to]")) {
+        a.classList.toggle("on", a.dataset.tabTo === t);
+        if (t === "me") a.classList.remove("ping");
+      }
       window.scrollTo({ top: 0 });
     };
     for (const a of document.querySelectorAll("[data-tab-to]")) a.onclick = (e) => {
       e.preventDefault();
-      go(a.dataset.tabTo);
+      if (location.hash !== `#${a.dataset.tabTo}`) location.hash = a.dataset.tabTo;
+      else go(a.dataset.tabTo);
     };
+    addEventListener("hashchange", () => go(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "me"));
+    if (TABS.includes(location.hash.slice(1))) go(location.hash.slice(1));
   }
   const th = $("theme");
   if (th && !th.dataset.done) {
@@ -345,6 +378,7 @@ function roomInfo(m, st) {
     ${next ? `<p class="small">\u6B21\u306F <b>${esc(next.ja)}</b>\uFF08${esc(whenText(next))}\uFF09</p>` : ""}
     <div class="actions">
       <button class="btn sub" id="snapshot">HAKO \u3092\u30B7\u30A7\u30A2</button>
+      <button class="btn sub" id="savekey">\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58</button>
     </div></div>`;
 }
 async function snapshot(m, st) {
@@ -435,28 +469,44 @@ function renderSaid(fold) {
   if (app.lastSay && !meals.some((x) => x.line === app.lastSay)) meals.unshift({ line: app.lastSay });
   let outs = (fold?.outs ?? []).slice(-1);
   if (app.lastArticle && !(fold?.outs ?? []).some((o) => o.contract === app.lastArticle.contract)) outs = [app.lastArticle];
-  el.innerHTML = [
+  const h = [
     ...outs.map((o) => `<article class="article">${o.lines.map((l, i) => i === 0 ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join("")}</article>`),
     ...meals.length > 1 ? [`<p class="label" style="margin-top:12px">\u3053\u308C\u307E\u3067\u306E\u3072\u3068\u3053\u3068</p>`] : [],
     ...meals.slice(1).map((x) => `<p class="bubble">${esc(x.line)}</p>`)
   ].join("");
+  if (app.saidHtml !== h || h && !el.firstChild) {
+    el.innerHTML = h;
+    app.saidHtml = h;
+  }
 }
 function renderEgg() {
   $("view").innerHTML = `
     <section class="card" id="me">
-      <div class="stage plain"><div class="egg">${spriteSvg(null, "egg", 6)}</div></div>
+      <div class="stage plain short"><div class="egg">${spriteSvg(null, "egg", 5)}</div></div>
       <p class="label" style="margin-top:14px">NEW HAKO</p>
       <h2>HAKO \u3092\u8FCE\u3048\u308B</h2>
       <p>\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002</p>
       <p class="note">\u306F\u3058\u3081\u306B ${fmt(app.box.initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002</p>
-      <label>\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08\u9375\u3092\u958B\u304F\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09<input id="p1" type="password" autocomplete="new-password"></label>
-      <label>\u3082\u3046\u4E00\u5EA6<input id="p2" type="password" autocomplete="new-password"></label>
+      <label>\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08\u9375\u3092\u958B\u304F\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09<span class="pw"><input id="p1" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2" aria-label="\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B">\u8868\u793A</button></span></label>
+      <label>\u3082\u3046\u4E00\u5EA6<span class="pw"><input id="p2" type="password" autocomplete="new-password"></span></label>
+      <p id="why" class="why"></p>
       <div class="actions"><button class="btn" id="born" style="--c:var(--good)"><span class="dot" style="background:var(--good)"></span>\u751F\u307E\u308C\u308B</button></div>
       <p class="small">\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308B\u3068\u304D\u306F <label class="link">\u30D5\u30A1\u30A4\u30EB\u304B\u3089\u8AAD\u307F\u8FBC\u3080<input id="file" type="file" accept="application/json" hidden></label></p>
-      <p id="why" class="why"></p>
     </section>`;
+  eyes();
   $("born").onclick = register;
   $("file").onchange = importKey;
+}
+function eyes() {
+  for (const b of document.querySelectorAll("[data-eye]")) b.onclick = () => {
+    const show = b.textContent === "\u8868\u793A";
+    for (const id of b.dataset.eye.split(",")) {
+      const el = $(id);
+      if (el) el.type = show ? "text" : "password";
+    }
+    b.textContent = show ? "\u96A0\u3059" : "\u8868\u793A";
+    b.setAttribute("aria-label", show ? "\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u96A0\u3059" : "\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B");
+  };
 }
 function sleeping() {
   let st = null;
@@ -472,23 +522,33 @@ function renderUnlock() {
     <section class="card" id="me">
       <div class="stage plain">${app.did ? `<div class="hako">${sleeping()}</div>` : ""}</div>
       <p>HAKO \u2026${esc(app.did.slice(-8))} \u304C\u7720\u3063\u3066\u3044\u307E\u3059\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3067\u9375\u3092\u958B\u3044\u3066\u304F\u3060\u3055\u3044\u3002</p>
-      <label>\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA<input id="p1" type="password" autocomplete="current-password"></label>
-      <div class="actions"><button class="btn" id="open">\u9375\u3092\u958B\u304F</button></div>
-      <label class="small"><input id="tab" type="checkbox" checked> \u3053\u306E\u30BF\u30D6\u3092\u9589\u3058\u308B\u307E\u3067\u899A\u3048\u308B</label>
+      <label>\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA<span class="pw"><input id="p1" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="p1" aria-label="\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B">\u8868\u793A</button></span></label>
       <p id="why" class="why"></p>
+      <div class="actions"><button class="btn" id="open">\u9375\u3092\u958B\u304F</button></div>
+      <label class="small"><input id="tab" type="checkbox" checked> \u30BF\u30D6\u3092\u9589\u3058\u308B\u307E\u3067\u899A\u3048\u308B\uFF08\u958B\u3044\u3066\u3044\u308B\u307B\u304B\u306E\u30BF\u30D6\u3067\u3082\u3001\u5165\u308C\u76F4\u3055\u305A\u306B\u4F7F\u3048\u307E\u3059\uFF09</label>
     </section>`;
+  eyes();
   $("open").onclick = unlock;
+  $("p1").onkeydown = (e) => {
+    if (e.key === "Enter") unlock();
+  };
 }
-const say = (s) => {
+const say = (s, bad = true) => {
+  app.why = s;
+  app.whyBad = !!s && bad;
+  app.whyAt = Date.now();
   const w = $("why");
-  if (w) w.textContent = s;
+  if (!w) return;
+  w.textContent = s;
+  w.classList.toggle("bad", !!s && bad);
+  if (s) w.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
 };
 async function register() {
   const p1 = $("p1").value, p2 = $("p2").value;
   if (p1.length < 8) return say("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u306F 8 \u6587\u5B57\u4EE5\u4E0A\u306B\u3057\u3066\u304F\u3060\u3055\u3044");
   if (p1 !== p2) return say("2 \u3064\u306E\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u304C\u9055\u3044\u307E\u3059");
   if (!await K.supported()) return say("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306F Ed25519 \u306E\u9375\u3092\u4F5C\u308C\u307E\u305B\u3093\u3002\u65B0\u3057\u3044\u30D6\u30E9\u30A6\u30B6\u3067\u958B\u3044\u3066\u304F\u3060\u3055\u3044");
-  say("\u9375\u3092\u4F5C\u3063\u3066\u3044\u307E\u3059\u2026");
+  say("\u9375\u3092\u4F5C\u3063\u3066\u3044\u307E\u3059\u2026", false);
   const { priv, did, rec } = await K.makeKey(p1);
   K.saveRec(rec);
   await K.rememberTab(priv, did);
@@ -553,6 +613,7 @@ async function startDeal(kind) {
 }
 function onDeal(kind, ev) {
   if (ev.type === "settled") {
+    if (document.body.dataset.tab !== "me") for (const a of document.querySelectorAll('[data-tab-to="me"]')) a.classList.add("ping");
     addLocal(app.did, { t: kind, ms: ev.ms, contract: ev.contract }, ev.delta);
     if (kind === "play") app.happyUntil = Date.now() + 8e3;
     if (kind === "out" && ev.lines) {
@@ -564,15 +625,23 @@ function onDeal(kind, ev) {
       }
       app.lastArticle = { contract: ev.contract, lines: facts ? fillArticle(ev.lines, facts) : ev.lines };
     }
+    app.whyBad = false;
+    app.whyAt = null;
     if (kind === "meal" && ev.say) {
       app.lastSay = ev.say;
       app.why = "";
     } else if (ev.say) app.why = ev.say;
     logOp(`settled \xB7 ${kind} \xB7 ${short(ev.contract)} \xB7 ${ev.delta >= 0 ? "+" : ""}${ev.delta} PAPER`);
-  } else if (ev.type === "note") app.why = ev.text;
+  } else if (ev.type === "note") {
+    app.why = ev.text;
+    app.whyBad = false;
+    app.whyAt = null;
+  }
   render();
 }
 async function boot() {
+  app.why = "";
+  app.viewHtml = null;
   for (const [k] of dealKinds) app.deals[k] = new Deal({ kind: k, app, onEvent: (ev) => onDeal(k, ev) });
   render();
   const tick = async () => {
@@ -611,10 +680,12 @@ async function start() {
     app.moods = null;
   }
   setVenue(app.box.venue);
+  K.serveTabs();
   const rec = K.loadRec();
   app.did = rec?.did ?? null;
   if (app.did) {
     app.priv = await K.recallTab(app.did);
+    if (!app.priv && await K.askTabs(app.did)) app.priv = await K.recallTab(app.did);
     if (app.priv) {
       app.signer = watched(makeSigner(app.did, app.priv));
       return boot();

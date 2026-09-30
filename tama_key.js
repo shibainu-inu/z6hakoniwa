@@ -88,6 +88,48 @@ async function recallTab(did) {
     return null;
   }
 }
+const SHARE = "tama_key_share_v1";
+function askTabs(did, ms = 350) {
+  return new Promise((resolve) => {
+    let ch;
+    try {
+      ch = new BroadcastChannel(SHARE);
+    } catch {
+      return resolve(false);
+    }
+    const done = (v) => {
+      try {
+        ch.close();
+      } catch {
+      }
+      resolve(v);
+    };
+    ch.onmessage = (e) => {
+      if (e.data?.t !== "have" || e.data.did !== did || !e.data.pkcs8) return;
+      try {
+        sessionStorage.setItem(TAB_KEY, JSON.stringify({ did, pkcs8: e.data.pkcs8 }));
+      } catch {
+      }
+      done(true);
+    };
+    ch.postMessage({ t: "ask", did });
+    setTimeout(() => done(false), ms);
+  });
+}
+function serveTabs() {
+  try {
+    const ch = new BroadcastChannel(SHARE);
+    ch.onmessage = (e) => {
+      if (e.data?.t !== "ask") return;
+      try {
+        const j = JSON.parse(sessionStorage.getItem(TAB_KEY) || "null");
+        if (j && j.did === e.data.did) ch.postMessage({ t: "have", did: j.did, pkcs8: j.pkcs8 });
+      } catch {
+      }
+    };
+  } catch {
+  }
+}
 function forgetTab() {
   try {
     sessionStorage.removeItem(TAB_KEY);
@@ -107,6 +149,7 @@ async function signLine(priv, room, nonce, text) {
 export {
   KEY,
   TAB_KEY,
+  askTabs,
   b64,
   b64u,
   didOf,
@@ -120,6 +163,7 @@ export {
   rememberTab,
   saveRec,
   sealKey,
+  serveTabs,
   short8,
   signLine,
   supported,
