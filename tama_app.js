@@ -1,4 +1,4 @@
-import { lifeState, localDay, tamaLine, fillArticle } from "./tama_core.js";
+import { lifeState, localDay, tamaLine, fillArticle, rewardOf } from "./tama_core.js";
 import { setVenue, makeSigner, readTail } from "./tama_net.js";
 import * as K from "./tama_key.js";
 import { dotSvg, eggSvg, pubFromDid, dotDerive } from "./hako_dot.js";
@@ -134,7 +134,8 @@ function render() {
   app.balance = m.balance;
   if (!st.born) return renderEgg();
   const d = dotDerive(pubFromDid(app.did));
-  const graveNote = st.grave ? `<p class="note">\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002</p>` : "";
+  const fee = Number(app.box.reborn_price ?? 0);
+  const graveNote = st.grave ? `<p class="note">\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306B\u306F ${fmt(fee)} $PAPER \u304B\u304B\u308A\u307E\u3059${m.balance < fee ? `\uFF08\u3044\u307E\u306F\u8DB3\u308A\u306A\u3044\u306E\u3067\u3001\u8CA1\u5E03\u304C 0 \u306B\u306A\u3063\u3066\u751F\u307E\u308C\u5909\u308F\u308A\u307E\u3059\uFF09` : ""}\u3002\u304A\u5893\u306E\u9593\u306F\u3001\u304A\u3067\u304B\u3051\u3068\u3042\u305D\u3076\u306F\u3067\u304D\u307E\u305B\u3093\u3002</p>` : "";
   view.innerHTML = `
     <section class="card">
       <div id="stage" class="stage"></div>
@@ -179,7 +180,10 @@ async function share(kind, m, st) {
   try {
     const png = await svgToPng(frameSvg(inner, title, lines));
     const file = new File([png], `hako-${app.did.slice(-8).toLowerCase()}-${kind}.png`, { type: "image/png" });
-    const url = new URL(`h/${app.did.slice(-8).toLowerCase()}.html`, location.href).href;
+    const u = new URL(`h/${app.did.slice(-8).toLowerCase()}.html`, location.href);
+    const v = String(app.stats?.box?.generated ?? "").replace(/[^0-9]/g, "");
+    if (v) u.searchParams.set("v", v);
+    const url = u.href;
     const text = kind === "article" ? `${title} \u306E\u304A\u3067\u304B\u3051\u8A18\u4E8B #HAKONIWA` : kind === "grave" ? `${title} \u306F\u304A\u5893\u3067\u4F11\u3093\u3067\u3044\u307E\u3059 #HAKONIWA` : `${title} \u306E\u90E8\u5C4B #HAKONIWA`;
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], text, url });
@@ -195,12 +199,21 @@ async function share(kind, m, st) {
     render();
   }
 }
+function playsToday(m) {
+  const today = localDay(Date.now(), app.box);
+  const done = m.events.filter((e) => e.t === "play" && localDay(e.ms, app.box) === today).length;
+  const live = app.deals.play?.busy() ? 1 : 0;
+  return done + live;
+}
 function actionBlock(kind, st, m) {
   const x = app.deals[kind];
   if (x?.busy()) return x.st.gaveUp ? "PAPER \u304C\u623B\u308B\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059" : "\u3044\u307E\u306F\u305D\u306E\u9014\u4E2D\u3067\u3059";
   const price = { meal: app.box.meal_price, out: app.box.out_price, play: app.box.play_stake }[kind];
+  if (st.grave) return "\u304A\u5893\u306E\u9593\u306F\u3067\u304D\u307E\u305B\u3093";
   if (m.balance < Number(price)) return "PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093";
   if (kind === "out" && st.outsToday >= Number(app.box.out_per_day)) return `\u304A\u3067\u304B\u3051\u306F 1 \u65E5 ${app.box.out_per_day} \u56DE\u307E\u3067\u3067\u3059`;
+  if (kind === "out" && st.hunger < Number(app.box.out_min_hunger ?? 0)) return `\u304A\u306A\u304B\u304C ${app.box.out_min_hunger} \u4EE5\u4E0A\u306A\u3044\u3068\u3001\u304A\u3067\u304B\u3051\u3067\u304D\u307E\u305B\u3093`;
+  if (kind === "play" && playsToday(m) >= Number(app.box.play_per_day ?? Infinity)) return `\u3042\u305D\u3076\u306F 1 \u65E5 ${app.box.play_per_day} \u56DE\u307E\u3067\u3067\u3059`;
   if (kind === "play" && !(app.box.npcs ?? []).length) return "\u3042\u305D\u3073\u76F8\u624B\u304C\u307E\u3060\u3044\u307E\u305B\u3093";
   return null;
 }
@@ -301,7 +314,8 @@ async function reborn() {
   } catch (e) {
     return say(`\u63B2\u793A\u677F\u306B\u51FA\u305B\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`);
   }
-  addLocal(app.did, { t: "reborn", ms: Date.now() });
+  const fee = Math.min(Number(app.box.reborn_price ?? 0), Math.max(0, app.balance ?? 0));
+  addLocal(app.did, { t: "reborn", ms: Date.now() }, -fee);
   app.rebornUntil = Date.now() + 2500;
   setTimeout(render, 2600);
   render();

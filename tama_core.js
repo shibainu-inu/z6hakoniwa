@@ -11,9 +11,9 @@ function lifeState(events, now, box) {
   const graveMs = Number(box.grave_after_hours) * HOUR;
   let s = null;
   let rebirths = 0;
-  const fresh = (ms) => ({
+  const fresh = (ms, reborn = false) => ({
     bornAt: ms,
-    hunger: Number(box.hunger_start),
+    hunger: Number(reborn ? box.reborn_hunger ?? box.hunger_start : box.hunger_start),
     mood: Number(box.mood_start),
     at: ms,
     zeroSince: null,
@@ -48,7 +48,7 @@ function lifeState(events, now, box) {
     if (e.t === "reborn") {
       if (s.grave) {
         rebirths += 1;
-        s = fresh(e.ms);
+        s = fresh(e.ms, true);
       }
       continue;
     }
@@ -138,6 +138,11 @@ function checkLines(lines, { n, maxChars = 140, instruction = "", fragmentWords 
   for (const [i, s] of needs) if (!String(lines[i] ?? "").includes(s)) return { ok: false, why: `${i + 1}:missing ${s}` };
   return { ok: true, why: "" };
 }
+function rewardOf(box, nth) {
+  const r = box.out_rewards;
+  if (!Array.isArray(r)) return Number(box.out_reward ?? 0);
+  return nth >= 1 && nth <= r.length ? Number(r[nth - 1]) : 0;
+}
 const fillArticle = (lines, facts) => lines.map((l) => l.split("{V}").join(String(facts.value)).split("{B}").join(String(facts.base)));
 function mealPrompt(instruction, st) {
   const h = st.hunger < 25 ? "starving" : st.hunger < 60 ? "hungry" : "a bit peckish";
@@ -181,6 +186,7 @@ export {
   outPrompt,
   parseTama,
   playPayout,
+  rewardOf,
   round2,
   splitLines,
   tamaLine,

@@ -1,6 +1,6 @@
 import * as tclk from "./hako_tclk.js";
 import { notes, readTail } from "./tama_net.js";
-import { jobId, tamaLine, parseTama, acceptKey, checkLines, mealPrompt, outPrompt, playPayout, localDay } from "./tama_core.js";
+import { jobId, tamaLine, parseTama, acceptKey, checkLines, mealPrompt, outPrompt, playPayout, localDay, rewardOf } from "./tama_core.js";
 const dealKinds = [["meal", "\u3054\u306F\u3093"], ["out", "\u304A\u3067\u304B\u3051"], ["play", "\u3042\u305D\u3076"]];
 const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
 class Deal {
@@ -207,7 +207,10 @@ class Deal {
       say = back > st.amount ? `\u52DD\u3063\u305F\uFF01 ${back} $PAPER \u623B\u3063\u3066\u304D\u305F` : back === st.amount ? `\u5F15\u304D\u5206\u3051\u3002${back} $PAPER \u623B\u3063\u3066\u304D\u305F` : `\u8CA0\u3051\u3061\u3083\u3063\u305F\u3002${back} $PAPER \u3060\u3051\u623B\u3063\u3066\u304D\u305F`;
     }
     if (this.kind === "meal") say = lines?.[0] ?? "";
-    if (this.kind === "out") say = "\u8A18\u4E8B\u304C\u3067\u304D\u307E\u3057\u305F\u3002\u307B\u3046\u3073\u306F\u5E33\u7C3F\u4FC2\u304C\u78BA\u304B\u3081\u3066\u304B\u3089\u5C4A\u304D\u307E\u3059";
+    if (this.kind === "out") {
+      const nth = (this.app.st?.outsToday ?? 0) + 1;
+      say = `\u8A18\u4E8B\u304C\u3067\u304D\u307E\u3057\u305F\u3002\u307B\u3046\u3073 ${rewardOf(b, nth)} $PAPER\uFF08\u4ECA\u65E5 ${nth} \u56DE\u76EE\uFF09\u306F\u3001\u5E33\u7C3F\u4FC2\u304C\u78BA\u304B\u3081\u3066\u304B\u3089\u5C4A\u304D\u307E\u3059`;
+    }
     this.set("settled", { done: true, locked: false, lines, settledAt: ms, day: localDay(ms, b) });
     this.onEvent({ type: "settled", contract: st.contract, ms, delta, say, lines });
   }
