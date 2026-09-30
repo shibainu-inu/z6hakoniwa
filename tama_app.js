@@ -309,7 +309,7 @@ function render() {
     const rec = K.loadRec();
     if (rec) {
       K.downloadRec(rec);
-      say("\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3068\u5225\u306E\u5834\u6240\u306B\u3057\u307E\u3063\u3066\u304F\u3060\u3055\u3044", false);
+      say("\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3068\u5225\u306E\u5834\u6240\u306B\u3057\u307E\u3063\u3066\u304F\u3060\u3055\u3044", false);
     }
   };
   for (const b of document.querySelectorAll("button[data-kind]")) b.onclick = () => startDeal(b.dataset.kind);
@@ -378,7 +378,7 @@ function roomInfo(m, st) {
     ${next ? `<p class="small">\u6B21\u306F <b>${esc(next.ja)}</b>\uFF08${esc(whenText(next))}\uFF09</p>` : ""}
     <div class="actions">
       <button class="btn sub" id="snapshot">HAKO \u3092\u30B7\u30A7\u30A2</button>
-      <button class="btn sub" id="savekey">\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58</button>
+      <button class="btn sub" id="savekey">\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58</button>
     </div></div>`;
 }
 async function snapshot(m, st) {
@@ -485,13 +485,13 @@ function renderEgg() {
       <div class="stage plain short"><div class="egg">${spriteSvg(null, "egg", 5)}</div></div>
       <p class="label" style="margin-top:14px">NEW HAKO</p>
       <h2>HAKO \u3092\u8FCE\u3048\u308B</h2>
-      <p>\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002</p>
+      <p>\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002</p>
       <p class="note">\u306F\u3058\u3081\u306B ${fmt(app.box.initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002</p>
       <label>\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08\u9375\u3092\u958B\u304F\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09<span class="pw"><input id="p1" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2" aria-label="\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B">\u8868\u793A</button></span></label>
       <label>\u3082\u3046\u4E00\u5EA6<span class="pw"><input id="p2" type="password" autocomplete="new-password"></span></label>
       <p id="why" class="why"></p>
       <div class="actions"><button class="btn" id="born" style="--c:var(--good)"><span class="dot" style="background:var(--good)"></span>\u751F\u307E\u308C\u308B</button></div>
-      <p class="small">\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308B\u3068\u304D\u306F <label class="link">\u30D5\u30A1\u30A4\u30EB\u304B\u3089\u8AAD\u307F\u8FBC\u3080<input id="file" type="file" accept="application/json" hidden></label></p>
+      <p class="small">\u9375\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308B\u3068\u304D\u306F <label class="link">\u30D5\u30A1\u30A4\u30EB\u304B\u3089\u8AAD\u307F\u8FBC\u3080<input id="file" type="file" accept="application/json" hidden></label></p>
     </section>`;
   eyes();
   $("born").onclick = register;
@@ -570,7 +570,7 @@ async function register() {
 async function importKey(ev) {
   try {
     const j = JSON.parse(await ev.target.files[0].text());
-    if (!K.isKeyFile(j)) return say("\u9375\u306E\u30D5\u30A1\u30A4\u30EB\u3067\u306F\u3042\u308A\u307E\u305B\u3093");
+    if (!K.isKeyFile(j)) return say("\u9375\u30D5\u30A1\u30A4\u30EB\u3067\u306F\u3042\u308A\u307E\u305B\u3093");
     K.saveRec(j);
     app.did = j.did;
     render();
