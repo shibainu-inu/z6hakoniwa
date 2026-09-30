@@ -1,4 +1,5 @@
 import { spriteRows, iconRows, inside, lineColor, THEMES } from "./tama_sprite.js";
+import { L } from "./tama_i18n.js";
 const FRAME = { bg: "#f4f1ea", ink: "#16151c", sub: "#55525e", edge: "#c9a181" };
 function lifetime(events, box, localDay) {
   const n = { meals: 0, outs: 0, plays: 0, days: 0, rebirths: 0 };
@@ -16,7 +17,8 @@ function lifetime(events, box, localDay) {
 const unlocked = (F, n) => F.items.filter((it) => (n[it.when[0]] ?? 0) >= it.when[1]);
 const nextUnlock = (F, n) => F.items.find((it) => (n[it.when[0]] ?? 0) < it.when[1]) ?? null;
 const WHEN_JA = { meals: "\u3054\u306F\u3093", outs: "\u304A\u3067\u304B\u3051", plays: "\u3042\u305D\u3076", days: "\u304A\u4E16\u8A71\u3057\u305F\u65E5", rebirths: "\u751F\u307E\u308C\u5909\u308F\u308A" };
-const whenText = (it) => `${WHEN_JA[it.when[0]]} ${it.when[1]} ${it.when[0] === "days" ? "\u65E5" : "\u56DE"}`;
+const WHEN_EN = { meals: "meals", outs: "outings", plays: "plays", days: "care days", rebirths: "rebirths" };
+const whenText = (it) => L(`${WHEN_JA[it.when[0]]} ${it.when[1]} ${it.when[0] === "days" ? "\u65E5" : "\u56DE"}`, `${it.when[1]} ${WHEN_EN[it.when[0]]}`);
 function dots(ox, oy, rows, px, color) {
   let d = "";
   rows.forEach((r, y) => {
@@ -137,7 +139,7 @@ function scrapSvg(F, did, n, title, o = {}) {
     const on = Math.round(Number(v) / Number(max) * 10), c = on >= 6 ? "#2fbf71" : on >= 3 ? "#ffc933" : "#d9434b";
     return `<text x="${x}" y="508" font-family="sans-serif" font-weight="700" font-size="19" fill="${FRAME.ink}">${label}</text><text x="${x + 236}" y="508" text-anchor="end" font-family="monospace" font-size="17" fill="${FRAME.sub}">${Math.round(v)}/${max}</text>` + Array.from({ length: 10 }, (_, i) => `<rect x="${x + i * 24}" y="518" width="20" height="12" rx="3" fill="${i < on ? c : "#eae6db"}"/>`).join("");
   };
-  const rec = [`\u9023\u7D9A ${o.streak ?? 0} \u65E5`, `\u304A\u4E16\u8A71\u3057\u305F\u65E5 ${n.days}`, `\u3054\u306F\u3093 ${n.meals}`, `\u304A\u3067\u304B\u3051 ${n.outs}`, `\u3042\u305D\u3076 ${n.plays}`, ...o.rebirths ? [`\u751F\u307E\u308C\u5909\u308F\u308A ${o.rebirths}`] : []];
+  const rec = [L(`\u9023\u7D9A ${o.streak ?? 0} \u65E5`, `Streak ${o.streak ?? 0}d`), L(`\u304A\u4E16\u8A71\u3057\u305F\u65E5 ${n.days}`, `Care days ${n.days}`), L(`\u3054\u306F\u3093 ${n.meals}`, `Meals ${n.meals}`), L(`\u304A\u3067\u304B\u3051 ${n.outs}`, `Outings ${n.outs}`), L(`\u3042\u305D\u3076 ${n.plays}`, `Plays ${n.plays}`), ...o.rebirths ? [L(`\u751F\u307E\u308C\u5909\u308F\u308A ${o.rebirths}`, `Rebirths ${o.rebirths}`)] : []];
   let cx = 92;
   const chips = rec.map((t) => {
     const w = 26 + [...t].reduce((a, ch) => a + (ch.charCodeAt(0) > 255 ? 17 : 10), 0);
@@ -146,9 +148,9 @@ function scrapSvg(F, did, n, title, o = {}) {
     return g;
   }).join("");
   const cardW = Math.max(600, cx - 92 + 32);
-  const card = `<g transform="rotate(1.5 380 520)"><rect x="76" y="466" width="${cardW}" height="130" rx="18" fill="#16151c" opacity="0.10"/><rect x="70" y="458" width="${cardW}" height="130" rx="18" fill="#ffffff" stroke="#eae6db" stroke-width="2"/>` + (o.grave ? `<text x="92" y="516" font-family="sans-serif" font-weight="800" font-size="24" fill="${FRAME.ink}">\u304A\u5893\u3067\u4F11\u3093\u3067\u3044\u307E\u3059</text>` : meter("\u304A\u306A\u304B", o.hunger ?? 0, o.hungerMax ?? 100, 92) + meter("\u3054\u304D\u3052\u3093", o.mood ?? 0, o.moodMax ?? 100, 352)) + chips + `</g>`;
+  const card = `<g transform="rotate(1.5 380 520)"><rect x="76" y="466" width="${cardW}" height="130" rx="18" fill="#16151c" opacity="0.10"/><rect x="70" y="458" width="${cardW}" height="130" rx="18" fill="#ffffff" stroke="#eae6db" stroke-width="2"/>` + (o.grave ? `<text x="92" y="516" font-family="sans-serif" font-weight="800" font-size="24" fill="${FRAME.ink}">${L("\u304A\u5893\u3067\u4F11\u3093\u3067\u3044\u307E\u3059", "Resting in its grave")}</text>` : meter(L("\u304A\u306A\u304B", "Tummy"), o.hunger ?? 0, o.hungerMax ?? 100, 92) + meter(L("\u3054\u304D\u3052\u3093", "Mood"), o.mood ?? 0, o.moodMax ?? 100, 352)) + chips + `</g>`;
   const [irows, icolor] = iconRows();
-  const logo = `<g opacity="0.72">${fig(irows, icolor, 1010, 558, 2)}<text x="1054" y="584" font-family="sans-serif" font-weight="800" font-size="22" fill="${FRAME.sub}">\u30CF\u30B3\u30CB\u30EF</text></g>`;
+  const logo = `<g opacity="0.72">${fig(irows, icolor, 1010, 558, 2)}<text x="1054" y="584" font-family="sans-serif" font-weight="800" font-size="22" fill="${FRAME.sub}">${L("\u30CF\u30B3\u30CB\u30EF", "HAKONIWA")}</text></g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="${FRAME.bg}"/><g transform="translate(0 -60) scale(${k})">${room}</g>${hako}${paper}${card}${logo}<rect x="12" y="12" width="${W - 24}" height="${H - 24}" fill="none" stroke="${FRAME.edge}" stroke-width="24"/></svg>`;
 }
 function svgToPng(svg, w = 1200, h = 630) {

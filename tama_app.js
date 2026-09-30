@@ -1,5 +1,6 @@
 import { lifeState, localDay, tamaLine, fillArticle, rewardOf } from "./tama_core.js";
 import { spriteSvg, spriteRows } from "./tama_sprite.js";
+import { L, getLang, setLang } from "./tama_i18n.js";
 import { setVenue, makeSigner, readTail } from "./tama_net.js";
 import * as K from "./tama_key.js";
 import { Deal, dealKinds } from "./tama_deal.js";
@@ -94,12 +95,12 @@ function watched(signer) {
   };
   return signer;
 }
-const WAIT = { offering: [0, "\u76F8\u624B\u3092\u63A2\u3057\u3066\u3044\u307E\u3059"], offered: [0, "\u76F8\u624B\u3092\u63A2\u3057\u3066\u3044\u307E\u3059"], locking: [1, "PAPER \u3092\u9810\u3051\u3066\u3044\u307E\u3059"], locked: [2, "\u5C4A\u304F\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059"], waiting: [2, "\u5C4A\u304F\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059"] };
+const waitOf = (stage) => ({ offering: [0, L("\u76F8\u624B\u3092\u63A2\u3057\u3066\u3044\u307E\u3059", "Looking for a taker")], offered: [0, L("\u76F8\u624B\u3092\u63A2\u3057\u3066\u3044\u307E\u3059", "Looking for a taker")], locking: [1, L("PAPER \u3092\u9810\u3051\u3066\u3044\u307E\u3059", "Locking PAPER")] })[stage] ?? [2, L("\u5C4A\u304F\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059", "Waiting for delivery")];
 function waitHtml() {
   const live2 = (x2) => x2.st && !x2.st.done;
   const x = Object.values(app.deals).find((d) => live2(d) && d.st.locked) ?? Object.values(app.deals).find(live2);
   if (!x) return "";
-  const [step, label] = x.st.gaveUp ? [2, "PAPER \u304C\u623B\u308B\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059"] : WAIT[x.st.stage] ?? [2, "\u5C4A\u304F\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059"];
+  const [step, label] = x.st.gaveUp ? [2, L("PAPER \u304C\u623B\u308B\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059", "Waiting for the PAPER to come back")] : waitOf(x.st.stage);
   return `<div class="wait" role="status"><span class="track" style="--s:${step}">${[0, 1, 2].map((k) => `<i class="${k < step ? "done" : k === step ? "now" : ""}"></i>`).join("")}<b class="coin"></b></span><span>${label}</span><span class="dots"><i></i><i></i><i></i></span></div>`;
 }
 let timer = null, live = 0;
@@ -157,6 +158,37 @@ function idle(fig, shadow, happy) {
   };
   breath();
 }
+function brief(line) {
+  const parts = String(line ?? "").split(/,\s+|、|[.!?。！？]\s+/).map((x) => x.trim().replace(/[.!?。！？]+$/, "")).filter(Boolean);
+  let out = parts[0] ?? "";
+  if (parts[1] && (out + ", " + parts[1]).length <= 40) out += ", " + parts[1];
+  return out.length > 44 ? out.slice(0, 43).replace(/\s+\S*$/, "") + "\u2026" : out;
+}
+function sayLines(fold) {
+  const out = [];
+  if (app.lastSay) out.push(app.lastSay);
+  for (const x of (fold?.meals ?? []).slice(-3).reverse()) if (x.line && !out.includes(x.line)) out.push(x.line);
+  return out;
+}
+function chatter(el, my) {
+  if (!el) return;
+  const speak = (fresh) => {
+    if (my !== live || !el.isConnected) return;
+    const lines = app.sayLines ?? [];
+    if (lines.length && (fresh || Math.random() < 0.6)) {
+      el.firstChild.textContent = brief(fresh ? lines[0] : lines[Math.floor(Math.random() * Math.min(lines.length, 3))]);
+      el.classList.add("on");
+      setTimeout(() => {
+        if (my === live) el.classList.remove("on");
+      }, 6e3);
+    }
+    setTimeout(() => speak(false), 14e3 + Math.random() * 16e3);
+  };
+  if (app.sayFresh) {
+    app.sayFresh = false;
+    speak(true);
+  } else setTimeout(() => speak(false), 2500 + Math.random() * 5e3);
+}
 function setMotion(kind) {
   const stage = $("stage"), slot = $("slot");
   if (!stage || !slot) return;
@@ -176,12 +208,12 @@ function setMotion(kind) {
     return;
   }
   if (kind === "out") {
-    slot.innerHTML = `<div class="away">${outSign()}<p>\u304A\u3067\u304B\u3051\u4E2D</p></div>`;
+    slot.innerHTML = `<div class="away">${outSign()}<p>${L("\u304A\u3067\u304B\u3051\u4E2D", "Out for a walk")}</p></div>`;
     return;
   }
   const look = kind === "reborn" ? "egg" : grow;
   const fx = kind === "happy" ? `<span class="fx"><i></i><i></i><i></i></span>` : kind === "eat" ? `${bowl()}<span class="fx steam"><i></i><i></i></span>` : kind === "sad" && look === "hako" ? `<span class="fx drop"><i></i></span>` : "";
-  slot.innerHTML = `<div class="pos" style="${at(spriteRows(app.did, look)[0])}"><div class="shadow"></div><div class="hako"></div>${fx}</div>`;
+  slot.innerHTML = `<div class="pos" style="${at(spriteRows(app.did, look)[0])}"><div class="shadow"></div><div class="hako"></div>${fx}<div class="say"><span></span></div></div>`;
   const fig = slot.querySelector(".hako"), shadow = slot.querySelector(".shadow");
   const frames = FRAMES[kind] ?? FRAMES.normal;
   const show = (f) => {
@@ -189,6 +221,7 @@ function setMotion(kind) {
   };
   show(frames[0]);
   const my = live;
+  if (look !== "egg") chatter(slot.querySelector(".say"), my);
   if ((kind === "normal" || kind === "happy") && look !== "egg" && !calm() && fig.animate) idle(fig, shadow, kind === "happy");
   if (look !== "hako" || calm()) return;
   if (kind === "normal") {
@@ -227,9 +260,10 @@ function meter(label, v, max) {
   return `<div class="meter"><div class="row"><span>${label}</span><span class="mono dim">${Math.round(v)}/${max}</span></div><div class="bar ${cls}" role="meter" aria-valuenow="${Math.round(v)}" aria-valuemax="${max}" aria-label="${label}">${Array.from({ length: 10 }, (_, k) => `<i class="${k < n ? "on" : ""}" style="--k:${k}"></i>`).join("")}</div></div>`;
 }
 const DOT = { meal: "var(--meal)", out: "var(--out)", play: "var(--play)" };
+const KIND_EN = { meal: "Feed", out: "Go out", play: "Play" };
 function stateWord(st) {
   const k = motionOf(st);
-  return { grave: "\u304A\u5893", out: "\u304A\u3067\u304B\u3051\u4E2D", eat: "\u98DF\u4E8B\u4E2D", happy: "\u3054\u304D\u3052\u3093", sad: "\u3057\u3087\u3093\u307C\u308A", reborn: "\u751F\u307E\u308C\u5909\u308F\u308A" }[k] ?? (st.hunger >= 60 ? "\u3052\u3093\u304D" : "\u3075\u3064\u3046");
+  return { grave: L("\u304A\u5893", "Resting"), out: L("\u304A\u3067\u304B\u3051\u4E2D", "Out"), eat: L("\u98DF\u4E8B\u4E2D", "Eating"), happy: L("\u3054\u304D\u3052\u3093", "Happy"), sad: L("\u3057\u3087\u3093\u307C\u308A", "Down"), reborn: L("\u751F\u307E\u308C\u5909\u308F\u308A", "Reborn") }[k] ?? (st.hunger >= 60 ? L("\u3052\u3093\u304D", "Lively") : L("\u3075\u3064\u3046", "OK"));
 }
 function lastSay(fold) {
   if (app.lastSay) return app.lastSay;
@@ -260,29 +294,31 @@ function render() {
   if (app.why && app.whyAt && Date.now() - app.whyAt > 9e3) app.why = "";
   if (!st.born) return renderEgg();
   const fee = Number(app.box.reborn_price ?? 0);
-  const graveNote = st.grave ? `<p class="note">\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306B\u306F ${fmt(fee)} $PAPER \u304B\u304B\u308A\u307E\u3059${m.balance < fee ? `\uFF08\u3044\u307E\u306F\u8DB3\u308A\u306A\u3044\u306E\u3067\u3001\u8CA1\u5E03\u304C 0 \u306B\u306A\u3063\u3066\u751F\u307E\u308C\u5909\u308F\u308A\u307E\u3059\uFF09` : ""}\u3002\u304A\u5893\u306E\u9593\u306F\u3001\u304A\u3067\u304B\u3051\u3068\u3042\u305D\u3076\u306F\u3067\u304D\u307E\u305B\u3093\u3002</p>` : "";
-  const said = st.grave ? null : lastSay(m.fold);
+  const graveNote = st.grave ? `<p class="note">` + L(
+    `\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306B\u306F ${fmt(fee)} $PAPER \u304B\u304B\u308A\u307E\u3059${m.balance < fee ? `\uFF08\u3044\u307E\u306F\u8DB3\u308A\u306A\u3044\u306E\u3067\u3001\u8CA1\u5E03\u304C 0 \u306B\u306A\u3063\u3066\u751F\u307E\u308C\u5909\u308F\u308A\u307E\u3059\uFF09` : ""}\u3002\u304A\u5893\u306E\u9593\u306F\u3001\u304A\u3067\u304B\u3051\u3068\u3042\u305D\u3076\u306F\u3067\u304D\u307E\u305B\u3093\u3002`,
+    `Its tummy stayed empty for ${app.box.grave_after_hours} hours, so it is resting in a grave. When it is reborn, the same HAKO starts over from an egg (the room and its record stay). Rebirth costs ${fmt(fee)} $PAPER${m.balance < fee ? ` (you don't have enough now, so your wallet will go to 0)` : ""}. While it rests, it can't go out or play.`
+  ) + `</p>` : "";
+  app.sayLines = st.grave ? [] : sayLines(m.fold);
   const w = $("wallet");
   if (w) {
     w.hidden = false;
     w.textContent = `${fmt(m.balance)} $PAPER${m.fromFold ? "" : " *"}`;
-    w.title = m.fromFold ? "\u8CA1\u5E03" : "\u5E33\u7C3F\u306B\u8F09\u308B\u307E\u3067\u306E\u898B\u8FBC\u307F";
+    w.title = m.fromFold ? L("\u8CA1\u5E03", "Wallet") : L("\u5E33\u7C3F\u306B\u8F09\u308B\u307E\u3067\u306E\u898B\u8FBC\u307F", "Estimate until the ledger catches up");
   }
   const acts = actionsHtml(st, m);
   const html = `
     <section class="card" id="me">
       <div id="stage" class="stage"><div class="bg">${roomBg(m, st)}</div><div id="slot"></div><div class="ops mono" id="ops" aria-hidden="true"></div></div>
-      ${said ? `<div class="say">${esc(said)}</div>` : ""}
       ${waitHtml()}
       <div class="who"><span class="name">HAKO <span class="mono">${esc(app.did.slice(-8))}</span></span><span class="chip state"><span class="dot" style="background:${st.grave ? "var(--dim)" : st.hunger >= 60 ? "var(--good)" : st.hunger >= 30 ? "var(--mid)" : "var(--bad)"}"></span>${stateWord(st)}</span></div>
-      ${st.grave ? "" : `<div class="meters">${meter("\u304A\u306A\u304B", st.hunger, app.box.hunger_max)}${meter("\u3054\u304D\u3052\u3093", st.mood, app.box.mood_max)}</div>`}
+      ${st.grave ? "" : `<div class="meters">${meter(L("\u304A\u306A\u304B", "Tummy"), st.hunger, app.box.hunger_max)}${meter(L("\u3054\u304D\u3052\u3093", "Mood"), st.mood, app.box.mood_max)}</div>`}
       <div class="chips mono">
-        <span class="chip">\u9023\u7D9A ${st.streak} \u65E5</span>
-        ${st.grave ? "" : `<span class="chip">\u304A\u3067\u304B\u3051 ${st.outsToday}/${app.box.out_per_day}</span><span class="chip">\u3042\u305D\u3076 ${playsToday(m)}/${app.box.play_per_day}</span>`}
-        ${st.rebirths ? `<span class="chip">\u751F\u307E\u308C\u5909\u308F\u308A ${st.rebirths}</span>` : ""}
-        ${m.fromFold ? "" : `<span class="chip">* \u5E33\u7C3F\u306B\u8F09\u308B\u307E\u3067\u306E\u898B\u8FBC\u307F</span>`}
+        <span class="chip">${L(`\u9023\u7D9A ${st.streak} \u65E5`, `Streak ${st.streak}d`)}</span>
+        ${st.grave ? "" : `<span class="chip">${L("\u304A\u3067\u304B\u3051", "Outings")} ${st.outsToday}/${app.box.out_per_day}</span><span class="chip">${L("\u3042\u305D\u3076", "Play")} ${playsToday(m)}/${app.box.play_per_day}</span>`}
+        ${st.rebirths ? `<span class="chip">${L("\u751F\u307E\u308C\u5909\u308F\u308A", "Rebirths")} ${st.rebirths}</span>` : ""}
+        ${m.fromFold ? "" : `<span class="chip">${L("* \u5E33\u7C3F\u306B\u8F09\u308B\u307E\u3067\u306E\u898B\u8FBC\u307F", "* estimate until the ledger catches up")}</span>`}
       </div>
-      ${!st.grave && st.stage !== "hako" && app.box.grow_hours ? `<p class="hint">${Math.round(app.box.grow_hours / 24)} \u65E5\u80B2\u3066\u308B\u3068\u2026\uFF1F</p>` : ""}
+      ${!st.grave && st.stage !== "hako" && app.box.grow_hours ? `<p class="hint">${L(`${Math.round(app.box.grow_hours / 24)} \u65E5\u80B2\u3066\u308B\u3068\u2026\uFF1F`, `Raise it for ${Math.round(app.box.grow_hours / 24)} days and\u2026?`)}</p>` : ""}
       ${graveNote}
       <div class="actions main">${acts}</div>
       <p id="why" class="why${app.why && app.whyBad ? " bad" : ""}">${esc(app.why ?? "")}</p>
@@ -310,19 +346,35 @@ function render() {
     const rec = K.loadRec();
     if (rec) {
       K.downloadRec(rec);
-      say("\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3068\u5225\u306E\u5834\u6240\u306B\u3057\u307E\u3063\u3066\u304F\u3060\u3055\u3044", false);
+      say(L("\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3068\u5225\u306E\u5834\u6240\u306B\u3057\u307E\u3063\u3066\u304F\u3060\u3055\u3044", "Key file saved. Keep it somewhere separate from your passphrase."), false);
     }
   };
   for (const b of document.querySelectorAll("button[data-kind]")) b.onclick = () => startDeal(b.dataset.kind);
   renderSaid(m.fold);
 }
 function actionsHtml(st, m) {
-  if (st.grave) return `<button class="btn" id="reborn" style="--c:var(--accent)"><span class="dot" style="background:var(--accent)"></span>\u751F\u307E\u308C\u5909\u308F\u308B <span class="price">${fmt(Math.min(Number(app.box.reborn_price ?? 0), Math.max(0, m.balance)))} $PAPER</span></button>`;
+  if (st.grave) return `<button class="btn" id="reborn" style="--c:var(--accent)"><span class="dot" style="background:var(--accent)"></span>${L("\u751F\u307E\u308C\u5909\u308F\u308B", "Be reborn")} <span class="price">${fmt(Math.min(Number(app.box.reborn_price ?? 0), Math.max(0, m.balance)))} $PAPER</span></button>`;
   const price = { meal: app.box.meal_price, out: app.box.out_price, play: app.box.play_stake };
   return dealKinds.map(([k, label]) => {
     const why = actionBlock(k, st, m);
-    return `<button class="btn${why ? " off" : ""}" data-kind="${k}" style="--c:${DOT[k]}" ${why ? `aria-disabled="true" title="${esc(why)}"` : ""}><span class="dot" style="background:${DOT[k]}"></span>${label} <span class="price">${fmt(price[k])} $PAPER</span></button>`;
+    return `<button class="btn${why ? " off" : ""}" data-kind="${k}" style="--c:${DOT[k]}" ${why ? `aria-disabled="true" title="${esc(why)}"` : ""}><span class="dot" style="background:${DOT[k]}"></span>${L(label, KIND_EN[k])} <span class="price">${fmt(price[k])} $PAPER</span></button>`;
   }).join("");
+}
+function applyLang() {
+  const en = getLang() === "en";
+  document.documentElement.lang = en ? "en" : "ja";
+  for (const el of document.querySelectorAll("[data-en]")) {
+    if (el.dataset.ja == null) el.dataset.ja = el.textContent;
+    el.textContent = en ? el.dataset.en : el.dataset.ja;
+  }
+  for (const el of document.querySelectorAll("[data-en-label]")) {
+    if (el.dataset.jaLabel == null) el.dataset.jaLabel = el.getAttribute("aria-label") ?? "";
+    const t = en ? el.dataset.enLabel : el.dataset.jaLabel;
+    el.setAttribute("aria-label", t);
+    el.title = t;
+  }
+  const lg = $("lang");
+  if (lg) lg.textContent = en ? "JA" : "EN";
 }
 function renderChrome() {
   if (!document.body.dataset.tabs) {
@@ -343,6 +395,18 @@ function renderChrome() {
     };
     addEventListener("hashchange", () => go(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "me"));
     if (TABS.includes(location.hash.slice(1))) go(location.hash.slice(1));
+  }
+  const lg = $("lang");
+  if (lg && !lg.dataset.done) {
+    lg.dataset.done = "1";
+    lg.onclick = () => {
+      setLang(getLang() === "ja" ? "en" : "ja");
+      applyLang();
+      app.viewHtml = null;
+      app.saidHtml = null;
+      render();
+    };
+    applyLang();
   }
   const th = $("theme");
   if (th && !th.dataset.done) {
@@ -375,11 +439,11 @@ function roomInfo(m, st) {
   const have = unlocked(app.F, n), next = nextUnlock(app.F, n);
   const art = app.lastArticle ?? (m.fold?.outs ?? []).slice(-1)[0] ?? null;
   return `<div class="roominfo" id="room"><p class="label">ROOM \xB7 ${have.length}/${app.F.items.length}</p>
-    <div class="chips">${have.map((x) => `<span class="chip">${esc(x.ja)}</span>`).join("") || `<span class="small">\u307E\u3060\u4F55\u3082\u306A\u3044\u90E8\u5C4B\u3067\u3059</span>`}</div>
-    ${next ? `<p class="small">\u6B21\u306F <b>${esc(next.ja)}</b>\uFF08${esc(whenText(next))}\uFF09</p>` : ""}
+    <div class="chips">${have.map((x) => `<span class="chip">${esc(L(x.ja, x.en ?? x.ja))}</span>`).join("") || `<span class="small">${L("\u307E\u3060\u4F55\u3082\u306A\u3044\u90E8\u5C4B\u3067\u3059", "The room is still empty")}</span>`}</div>
+    ${next ? `<p class="small">${L("\u6B21\u306F", "Next:")} <b>${esc(L(next.ja, next.en ?? next.ja))}</b>${L("\uFF08", " (")}${esc(whenText(next))}${L("\uFF09", ")")}</p>` : ""}
     <div class="actions">
-      <button class="btn sub" id="snapshot">HAKO \u3092\u30B7\u30A7\u30A2</button>
-      <button class="btn sub" id="savekey">\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58</button>
+      <button class="btn sub" id="snapshot">${L("HAKO \u3092\u30B7\u30A7\u30A2", "Share HAKO")}</button>
+      <button class="btn sub" id="savekey">${L("\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58", "Save key file")}</button>
     </div></div>`;
 }
 async function snapshot(m, st) {
@@ -411,15 +475,15 @@ async function snapshot(m, st) {
     const u = new URL(`h/${app.did.slice(-8).toLowerCase()}.html`, location.href);
     const v = String(app.stats?.box?.generated ?? "").replace(/[^0-9]/g, "");
     if (v) u.searchParams.set("v", v);
-    const text = st.grave ? `${title} \u306F\u304A\u5893\u3067\u4F11\u3093\u3067\u3044\u307E\u3059 #HAKONIWA` : art ? `${title} \u306E\u304A\u3067\u304B\u3051\u8A18\u4E8B #HAKONIWA` : `${title} \u306E\u90E8\u5C4B #HAKONIWA`;
+    const text = st.grave ? L(`${title} \u306F\u304A\u5893\u3067\u4F11\u3093\u3067\u3044\u307E\u3059 #HAKONIWA`, `${title} is resting in its grave #HAKONIWA`) : art ? L(`${title} \u306E\u304A\u3067\u304B\u3051\u8A18\u4E8B #HAKONIWA`, `${title}'s outing report #HAKONIWA`) : L(`${title} \u306E\u90E8\u5C4B #HAKONIWA`, `${title}'s room #HAKONIWA`);
     const src = URL.createObjectURL(file);
     const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
     document.getElementById("snap")?.remove();
     const box = document.createElement("div");
     box.className = "snap";
     box.id = "snap";
-    box.innerHTML = `<div class="photo"><img src="${src}" alt="${esc(title)} \u306E\u90E8\u5C4B\u306E\u5199\u771F"><p class="mono">${esc(title)}</p></div>
-      <div class="actions"><button class="btn" id="snap-share" style="--c:var(--accent)">\u30B7\u30A7\u30A2\u3059\u308B</button><a class="btn sub" id="snap-save" href="${src}" download="${file.name}">\u753B\u50CF\u3092\u4FDD\u5B58</a><button class="btn sub" id="snap-close">\u3068\u3058\u308B</button></div>`;
+    box.innerHTML = `<div class="photo"><img src="${src}" alt="${esc(L(`${title} \u306E\u90E8\u5C4B\u306E\u5199\u771F`, `A photo of ${title}'s room`))}"><p class="mono">${esc(title)}</p></div>
+      <div class="actions"><button class="btn" id="snap-share" style="--c:var(--accent)">${L("\u30B7\u30A7\u30A2\u3059\u308B", "Share")}</button><a class="btn sub" id="snap-save" href="${src}" download="${file.name}">${L("\u753B\u50CF\u3092\u4FDD\u5B58", "Save image")}</a><button class="btn sub" id="snap-close">${L("\u3068\u3058\u308B", "Close")}</button></div>`;
     document.body.appendChild(box);
     const close = () => {
       box.remove();
@@ -441,7 +505,7 @@ async function snapshot(m, st) {
       window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(u.href)}`, "_blank", "noopener");
     };
   } catch (e) {
-    app.why = `\u753B\u50CF\u3092\u4F5C\u308C\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`;
+    app.why = L(`\u753B\u50CF\u3092\u4F5C\u308C\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`, `Couldn't make the image (${e.message})`);
     render();
   }
 }
@@ -453,14 +517,14 @@ function playsToday(m) {
 }
 function actionBlock(kind, st, m) {
   const x = app.deals[kind];
-  if (x?.busy()) return x.st.gaveUp ? "PAPER \u304C\u623B\u308B\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059" : "\u3044\u307E\u306F\u305D\u306E\u9014\u4E2D\u3067\u3059";
+  if (x?.busy()) return x.st.gaveUp ? L("PAPER \u304C\u623B\u308B\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059", "Waiting for the PAPER to come back") : L("\u3044\u307E\u306F\u305D\u306E\u9014\u4E2D\u3067\u3059", "Already in progress");
   const price = { meal: app.box.meal_price, out: app.box.out_price, play: app.box.play_stake }[kind];
-  if (st.grave) return "\u304A\u5893\u306E\u9593\u306F\u3067\u304D\u307E\u305B\u3093";
-  if (m.balance < Number(price)) return "PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093";
-  if (kind === "out" && st.outsToday >= Number(app.box.out_per_day)) return `\u304A\u3067\u304B\u3051\u306F 1 \u65E5 ${app.box.out_per_day} \u56DE\u307E\u3067\u3067\u3059`;
-  if (kind === "out" && st.hunger < Number(app.box.out_min_hunger ?? 0)) return `\u304A\u306A\u304B\u304C ${app.box.out_min_hunger} \u4EE5\u4E0A\u306A\u3044\u3068\u3001\u304A\u3067\u304B\u3051\u3067\u304D\u307E\u305B\u3093`;
-  if (kind === "play" && playsToday(m) >= Number(app.box.play_per_day ?? Infinity)) return `\u3042\u305D\u3076\u306F 1 \u65E5 ${app.box.play_per_day} \u56DE\u307E\u3067\u3067\u3059`;
-  if (kind === "play" && !(app.box.npcs ?? []).length) return "\u3042\u305D\u3073\u76F8\u624B\u304C\u307E\u3060\u3044\u307E\u305B\u3093";
+  if (st.grave) return L("\u304A\u5893\u306E\u9593\u306F\u3067\u304D\u307E\u305B\u3093", "Not while it rests in the grave");
+  if (m.balance < Number(price)) return L("PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093", "Not enough PAPER");
+  if (kind === "out" && st.outsToday >= Number(app.box.out_per_day)) return L(`\u304A\u3067\u304B\u3051\u306F 1 \u65E5 ${app.box.out_per_day} \u56DE\u307E\u3067\u3067\u3059`, `Outings are limited to ${app.box.out_per_day} a day`);
+  if (kind === "out" && st.hunger < Number(app.box.out_min_hunger ?? 0)) return L(`\u304A\u306A\u304B\u304C ${app.box.out_min_hunger} \u4EE5\u4E0A\u306A\u3044\u3068\u3001\u304A\u3067\u304B\u3051\u3067\u304D\u307E\u305B\u3093`, `It needs a tummy of ${app.box.out_min_hunger} or more to go out`);
+  if (kind === "play" && playsToday(m) >= Number(app.box.play_per_day ?? Infinity)) return L(`\u3042\u305D\u3076\u306F 1 \u65E5 ${app.box.play_per_day} \u56DE\u307E\u3067\u3067\u3059`, `Play is limited to ${app.box.play_per_day} a day`);
+  if (kind === "play" && !(app.box.npcs ?? []).length) return L("\u3042\u305D\u3073\u76F8\u624B\u304C\u307E\u3060\u3044\u307E\u305B\u3093", "No playmates yet");
   return null;
 }
 function renderSaid(fold) {
@@ -472,8 +536,8 @@ function renderSaid(fold) {
   if (app.lastArticle && !(fold?.outs ?? []).some((o) => o.contract === app.lastArticle.contract)) outs = [app.lastArticle];
   const h = [
     ...outs.map((o) => `<article class="article">${o.lines.map((l, i) => i === 0 ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join("")}</article>`),
-    ...meals.length > 1 ? [`<p class="label" style="margin-top:12px">\u3053\u308C\u307E\u3067\u306E\u3072\u3068\u3053\u3068</p>`] : [],
-    ...meals.slice(1).map((x) => `<p class="bubble">${esc(x.line)}</p>`)
+    ...meals.length ? [`<p class="label" style="margin-top:12px">${L("\u3072\u3068\u3053\u3068", "What it said")}</p>`] : [],
+    ...meals.map((x) => `<p class="bubble">${esc(x.line)}</p>`)
   ].join("");
   if (app.saidHtml !== h || h && !el.firstChild) {
     el.innerHTML = h;
@@ -485,14 +549,14 @@ function renderEgg() {
     <section class="card" id="me">
       <div class="stage plain short"><div class="egg">${spriteSvg(null, "egg", 5)}</div></div>
       <p class="label" style="margin-top:14px">NEW HAKO</p>
-      <h2>HAKO \u3092\u8FCE\u3048\u308B</h2>
-      <p>\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002</p>
-      <p class="note">\u306F\u3058\u3081\u306B ${fmt(app.box.initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002</p>
-      <label>\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08\u9375\u3092\u958B\u304F\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09<span class="pw"><input id="p1" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2" aria-label="\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B">\u8868\u793A</button></span></label>
-      <label>\u3082\u3046\u4E00\u5EA6<span class="pw"><input id="p2" type="password" autocomplete="new-password"></span></label>
+      <h2>${L("HAKO \u3092\u8FCE\u3048\u308B", "Welcome a HAKO")}</h2>
+      <p>${L("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002", "A key is made inside this browser and your HAKO is born. The key is never sent anywhere. If you lose it you can't move your HAKO, so save the key file once it is born.")}</p>
+      <p class="note">${L(`\u306F\u3058\u3081\u306B ${fmt(app.box.initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002`, `You start with ${fmt(app.box.initial_paper)} $PAPER. PAPER is only a score inside this garden and has no monetary value. It can't be cashed out, bought or sold.`)}</p>
+      <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08\u9375\u3092\u958B\u304F\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09", "Passphrase (used to unlock your key)")}<span class="pw"><input id="p1" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2"></button></span></label>
+      <label>${L("\u3082\u3046\u4E00\u5EA6", "Once more")}<span class="pw"><input id="p2" type="password" autocomplete="new-password"></span></label>
       <p id="why" class="why"></p>
-      <div class="actions"><button class="btn" id="born" style="--c:var(--good)"><span class="dot" style="background:var(--good)"></span>\u751F\u307E\u308C\u308B</button></div>
-      <p class="small">\u9375\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308B\u3068\u304D\u306F <label class="link">\u30D5\u30A1\u30A4\u30EB\u304B\u3089\u8AAD\u307F\u8FBC\u3080<input id="file" type="file" accept="application/json" hidden></label></p>
+      <div class="actions"><button class="btn" id="born" style="--c:var(--good)"><span class="dot" style="background:var(--good)"></span>${L("\u751F\u307E\u308C\u308B", "Be born")}</button></div>
+      <p class="small">${L("\u9375\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308B\u3068\u304D\u306F", "Have a key file?")} <label class="link">${L("\u30D5\u30A1\u30A4\u30EB\u304B\u3089\u8AAD\u307F\u8FBC\u3080", "Load it from a file")}<input id="file" type="file" accept="application/json" hidden></label></p>
     </section>`;
   eyes();
   $("born").onclick = register;
@@ -500,14 +564,18 @@ function renderEgg() {
 }
 function eyes() {
   for (const b of document.querySelectorAll("[data-eye]")) b.onclick = () => {
-    const show = b.textContent === "\u8868\u793A";
+    b.dataset.on = b.dataset.on === "1" ? "" : "1";
     for (const id of b.dataset.eye.split(",")) {
       const el = $(id);
-      if (el) el.type = show ? "text" : "password";
+      if (el) el.type = b.dataset.on ? "text" : "password";
     }
-    b.textContent = show ? "\u96A0\u3059" : "\u8868\u793A";
-    b.setAttribute("aria-label", show ? "\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u96A0\u3059" : "\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B");
+    label(b);
   };
+  const label = (b) => {
+    b.textContent = b.dataset.on ? L("\u96A0\u3059", "Hide") : L("\u8868\u793A", "Show");
+    b.setAttribute("aria-label", b.dataset.on ? L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u96A0\u3059", "Hide passphrase") : L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B", "Show passphrase"));
+  };
+  for (const b of document.querySelectorAll("[data-eye]")) label(b);
 }
 function sleeping() {
   let st = null;
@@ -522,11 +590,11 @@ function renderUnlock() {
   $("view").innerHTML = `
     <section class="card" id="me">
       <div class="stage plain">${app.did ? `<div class="hako">${sleeping()}</div>` : ""}</div>
-      <p>HAKO \u2026${esc(app.did.slice(-8))} \u304C\u7720\u3063\u3066\u3044\u307E\u3059\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3067\u9375\u3092\u958B\u3044\u3066\u304F\u3060\u3055\u3044\u3002</p>
-      <label>\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA<span class="pw"><input id="p1" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="p1" aria-label="\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u8868\u793A\u3059\u308B">\u8868\u793A</button></span></label>
+      <p>${L(`HAKO \u2026${esc(app.did.slice(-8))} \u304C\u7720\u3063\u3066\u3044\u307E\u3059\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3067\u9375\u3092\u958B\u3044\u3066\u304F\u3060\u3055\u3044\u3002`, `HAKO \u2026${esc(app.did.slice(-8))} is asleep. Unlock the key with your passphrase.`)}</p>
+      <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA", "Passphrase")}<span class="pw"><input id="p1" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="p1"></button></span></label>
       <p id="why" class="why"></p>
-      <div class="actions"><button class="btn" id="open">\u9375\u3092\u958B\u304F</button></div>
-      <label class="small"><input id="tab" type="checkbox" checked> \u30BF\u30D6\u3092\u9589\u3058\u308B\u307E\u3067\u899A\u3048\u308B\uFF08\u958B\u3044\u3066\u3044\u308B\u307B\u304B\u306E\u30BF\u30D6\u3067\u3082\u3001\u5165\u308C\u76F4\u3055\u305A\u306B\u4F7F\u3048\u307E\u3059\uFF09</label>
+      <div class="actions"><button class="btn" id="open">${L("\u9375\u3092\u958B\u304F", "Unlock")}</button></div>
+      <label class="small"><input id="tab" type="checkbox" checked> ${L("\u30BF\u30D6\u3092\u9589\u3058\u308B\u307E\u3067\u899A\u3048\u308B\uFF08\u958B\u3044\u3066\u3044\u308B\u307B\u304B\u306E\u30BF\u30D6\u3067\u3082\u3001\u5165\u308C\u76F4\u3055\u305A\u306B\u4F7F\u3048\u307E\u3059\uFF09", "Remember until this tab is closed (other open tabs can use it without re-entering)")}</label>
     </section>`;
   eyes();
   $("open").onclick = unlock;
@@ -546,10 +614,10 @@ const say = (s, bad = true) => {
 };
 async function register() {
   const p1 = $("p1").value, p2 = $("p2").value;
-  if (p1.length < 8) return say("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u306F 8 \u6587\u5B57\u4EE5\u4E0A\u306B\u3057\u3066\u304F\u3060\u3055\u3044");
-  if (p1 !== p2) return say("2 \u3064\u306E\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u304C\u9055\u3044\u307E\u3059");
-  if (!await K.supported()) return say("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306F Ed25519 \u306E\u9375\u3092\u4F5C\u308C\u307E\u305B\u3093\u3002\u65B0\u3057\u3044\u30D6\u30E9\u30A6\u30B6\u3067\u958B\u3044\u3066\u304F\u3060\u3055\u3044");
-  say("\u9375\u3092\u4F5C\u3063\u3066\u3044\u307E\u3059\u2026", false);
+  if (p1.length < 8) return say(L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u306F 8 \u6587\u5B57\u4EE5\u4E0A\u306B\u3057\u3066\u304F\u3060\u3055\u3044", "Use a passphrase of 8 characters or more"));
+  if (p1 !== p2) return say(L("2 \u3064\u306E\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u304C\u9055\u3044\u307E\u3059", "The two passphrases don't match"));
+  if (!await K.supported()) return say(L("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306F Ed25519 \u306E\u9375\u3092\u4F5C\u308C\u307E\u305B\u3093\u3002\u65B0\u3057\u3044\u30D6\u30E9\u30A6\u30B6\u3067\u958B\u3044\u3066\u304F\u3060\u3055\u3044", "This browser can't make an Ed25519 key. Please open it in a newer browser."));
+  say(L("\u9375\u3092\u4F5C\u3063\u3066\u3044\u307E\u3059\u2026", "Making your key\u2026"), false);
   const { priv, did, rec } = await K.makeKey(p1);
   K.saveRec(rec);
   await K.rememberTab(priv, did);
@@ -559,7 +627,7 @@ async function register() {
   try {
     await app.signer.post(app.box.board, tamaLine({ t: "join", v: 1, n: rand() }));
   } catch (e) {
-    say(`\u63B2\u793A\u677F\u306B\u51FA\u305B\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09\u3002\u3082\u3046\u4E00\u5EA6\u62BC\u3057\u3066\u304F\u3060\u3055\u3044`);
+    say(L(`\u63B2\u793A\u677F\u306B\u51FA\u305B\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09\u3002\u3082\u3046\u4E00\u5EA6\u62BC\u3057\u3066\u304F\u3060\u3055\u3044`, `Couldn't post to the board (${e.message}). Please press again.`));
     return;
   }
   addLocal(did, { t: "join", ms: Date.now() });
@@ -571,12 +639,12 @@ async function register() {
 async function importKey(ev) {
   try {
     const j = JSON.parse(await ev.target.files[0].text());
-    if (!K.isKeyFile(j)) return say("\u9375\u30D5\u30A1\u30A4\u30EB\u3067\u306F\u3042\u308A\u307E\u305B\u3093");
+    if (!K.isKeyFile(j)) return say(L("\u9375\u30D5\u30A1\u30A4\u30EB\u3067\u306F\u3042\u308A\u307E\u305B\u3093", "That is not a key file"));
     K.saveRec(j);
     app.did = j.did;
     render();
   } catch (e) {
-    say(`\u8AAD\u3081\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`);
+    say(L(`\u8AAD\u3081\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`, `Couldn't read it (${e.message})`));
   }
 }
 async function unlock() {
@@ -588,14 +656,14 @@ async function unlock() {
     if ($("tab").checked) await K.rememberTab(priv, app.did);
     await boot();
   } catch {
-    say("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u304C\u9055\u3044\u307E\u3059");
+    say(L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u304C\u9055\u3044\u307E\u3059", "Wrong passphrase"));
   }
 }
 async function reborn() {
   try {
     await app.signer.post(app.box.board, tamaLine({ t: "reborn", n: rand() }));
   } catch (e) {
-    return say(`\u63B2\u793A\u677F\u306B\u51FA\u305B\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`);
+    return say(L(`\u63B2\u793A\u677F\u306B\u51FA\u305B\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`, `Couldn't post to the board (${e.message})`));
   }
   const fee = Math.min(Number(app.box.reborn_price ?? 0), Math.max(0, app.balance ?? 0));
   addLocal(app.did, { t: "reborn", ms: Date.now() }, -fee);
@@ -630,6 +698,7 @@ function onDeal(kind, ev) {
     app.whyAt = null;
     if (kind === "meal" && ev.say) {
       app.lastSay = ev.say;
+      app.sayFresh = true;
       app.why = "";
     } else if (ev.say) app.why = ev.say;
     logOp(`settled \xB7 ${kind} \xB7 ${short(ev.contract)} \xB7 ${ev.delta >= 0 ? "+" : ""}${ev.delta} PAPER`);
@@ -698,6 +767,7 @@ export {
   addLocal,
   app,
   boot,
+  brief,
   loadLocal,
   merged,
   opLine,
