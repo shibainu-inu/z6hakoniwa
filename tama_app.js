@@ -271,7 +271,8 @@ function render() {
   const acts = actionsHtml(st, m);
   const html = `
     <section class="card" id="me">
-      <div id="stage" class="stage"><div class="bg">${roomBg(m, st)}</div>${said ? `<div class="say">${esc(said)}</div>` : ""}<div id="slot"></div><div class="ops mono" id="ops" aria-hidden="true"></div></div>
+      <div id="stage" class="stage"><div class="bg">${roomBg(m, st)}</div><div id="slot"></div><div class="ops mono" id="ops" aria-hidden="true"></div></div>
+      ${said ? `<div class="say">${esc(said)}</div>` : ""}
       ${waitHtml()}
       <div class="who"><span class="name">HAKO <span class="mono">${esc(app.did.slice(-8))}</span></span><span class="chip state"><span class="dot" style="background:${st.grave ? "var(--dim)" : st.hunger >= 60 ? "var(--good)" : st.hunger >= 30 ? "var(--mid)" : "var(--bad)"}"></span>${stateWord(st)}</span></div>
       ${st.grave ? "" : `<div class="meters">${meter("\u304A\u306A\u304B", st.hunger, app.box.hunger_max)}${meter("\u3054\u304D\u3052\u3093", st.mood, app.box.mood_max)}</div>`}
