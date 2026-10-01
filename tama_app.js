@@ -260,11 +260,12 @@ function setMotion(kind) {
   }
   const look = kind === "reborn" ? "egg" : grow;
   const fx = kind === "happy" ? `<span class="fx"><i></i><i></i><i></i></span>` : kind === "eat" ? `${bowl()}<span class="fx steam"><i></i><i></i></span>` : kind === "sad" && look === "hako" ? `<span class="fx drop"><i></i></span>` : "";
-  slot.innerHTML = `<div class="pos" style="${at(spriteRows(app.did, look)[0])}"><div class="shadow"></div><div class="hako"></div>${fx}<div class="say"><span></span></div></div>`;
+  slot.innerHTML = `<div class="pos" style="${at(spriteRows(app.did, look, { level: app.st?.accLevel ?? 1 })[0])}"><div class="shadow"></div><div class="hako"></div>${fx}<div class="say"><span></span></div></div>`;
   const fig = slot.querySelector(".hako"), shadow = slot.querySelector(".shadow");
   const frames = FRAMES[kind] ?? FRAMES.normal;
+  const level = app.st?.accLevel ?? 1;
   const show = (f) => {
-    fig.innerHTML = spriteSvg(app.did, look, HAKO_PX, f);
+    fig.innerHTML = spriteSvg(app.did, look, HAKO_PX, { level, ...f });
   };
   show(frames[0]);
   const my = live;
@@ -507,6 +508,7 @@ async function snapshot(m, st) {
   try {
     const png = await svgToPng(scrapSvg(app.F, app.did, n, title, {
       stage: st.stage,
+      level: st.accLevel ?? 1,
       grave: st.grave,
       hunger: st.hunger,
       mood: st.mood,
@@ -631,7 +633,7 @@ function sleeping() {
   } catch {
     st = null;
   }
-  return spriteSvg(app.did, st?.born ? st.grave ? "ghost" : st.stage : "egg", 6, { eye: "line" });
+  return spriteSvg(app.did, st?.born ? st.grave ? "ghost" : st.stage : "egg", 6, { eye: "line", level: st?.accLevel ?? 1 });
 }
 function renderUnlock() {
   $("view").innerHTML = `

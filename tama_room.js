@@ -1,4 +1,4 @@
-import { spriteRows, iconRows, inside, lineColor, THEMES } from "./tama_sprite.js";
+import { spriteRows, iconRows, inside, paint, THEMES } from "./tama_sprite.js";
 import { L } from "./tama_i18n.js";
 const FRAME = { bg: "#f4f1ea", ink: "#16151c", sub: "#55525e", edge: "#c9a181" };
 function lifetime(events, box, localDay) {
@@ -54,7 +54,7 @@ function artSvg(rows, palette, theme = "css", cls = "") {
 }
 function roomSvg(F, did, n, { w = 480, h = 300, px = 6, hako = "alive", stage = "hako", over = {}, theme = "light" } = {}) {
   const T = THEMES[theme];
-  const figure = (x, y, rows, color) => dots(x, y, inside(rows), HAKO_PX, T.in) + dots(x, y, rows, HAKO_PX, lineColor(color, theme));
+  const figure = (x, y, rows, color) => paint(dots, x, y, rows, HAKO_PX, color, theme);
   const floorY = Math.round(h * 0.62);
   let o = `<rect width="${w}" height="${h}" fill="${T.wall}"/><rect y="${floorY}" width="${w}" height="${h - floorY}" fill="${T.floor}"/><rect y="${floorY}" width="${w}" height="2" fill="${T.edge}"/>`;
   px = F.px ?? px;
@@ -113,8 +113,8 @@ function wrap(text, max, rowsMax) {
 function scrapSvg(F, did, n, title, o = {}) {
   const W = 1200, H = 630, k = W / 480, floor = Math.round(300 * 0.62 * k) - 60;
   const room = roomSvg(F, did, n, { hako: o.grave ? "tomb" : "away", theme: "light" }).replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
-  const fig = (rows2, color2, x, y, px2) => dots(x, y, inside(rows2), px2, THEMES.light.in) + dots(x, y, rows2, px2, lineColor(color2, "light"));
-  const [rows, color] = spriteRows(did, o.grave ? "ghost" : o.stage ?? "hako");
+  const fig = (rows2, color2, x, y, px2) => paint(dots, x, y, rows2, px2, color2, "light");
+  const [rows, color] = spriteRows(did, o.grave ? "ghost" : o.stage ?? "hako", { level: o.level || 1 });
   const px = 12, hw = rows[0].length * px, hh = rows.length * px, hx = 290, hy = floor - hh + px * 2 - (o.grave ? 40 : 0);
   const hako = `<g transform="rotate(-9 ${hx + hw / 2} ${hy + hh})"${o.grave ? ' opacity="0.8"' : ""}>${fig(rows, color, hx, hy, px)}</g>`;
   const lines = o.lines?.length ? o.lines : o.say ? [`\u201C${o.say}\u201D`] : [];
