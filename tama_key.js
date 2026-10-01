@@ -64,6 +64,13 @@ function saveRec(rec) {
     return false;
   }
 }
+const loginName = (did) => `HAKO \u2026${short8(did)}`;
+async function offerSave(did, pass) {
+  try {
+    if (typeof PasswordCredential === "function" && navigator.credentials?.store) await navigator.credentials.store(new PasswordCredential({ id: loginName(did), password: pass, name: loginName(did) }));
+  } catch {
+  }
+}
 function isKeyFile(j) {
   return !!(j && j.kind === "tama-key" && j.did && j.kdf && j.enc);
 }
@@ -157,7 +164,9 @@ export {
   forgetTab,
   isKeyFile,
   loadRec,
+  loginName,
   makeKey,
+  offerSave,
   openKey,
   recallTab,
   rememberTab,

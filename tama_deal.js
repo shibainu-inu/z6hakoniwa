@@ -148,8 +148,19 @@ class Deal {
         this.note(L("\u4F1A\u5834\u304C\u6DF7\u3093\u3067\u3044\u3066\u90E8\u5C4B\u3092\u958B\u3051\u307E\u305B\u3093\u3067\u3057\u305F\u3002PAPER \u306F\u52D5\u3044\u3066\u3044\u307E\u305B\u3093", "The venue was too busy to open a room. No PAPER moved."));
         return;
       }
+      if (!st.lock) {
+        let step = null;
+        try {
+          step = tclk.applyFrame(tclk.openContract(o), st.accept, Math.min(now, o.expiresMs - 1));
+        } catch {
+          step = null;
+        }
+        const existing = await this.rail.read(st.contract).catch(() => null);
+        const ref = existing || !step?.ok ? st.contract : await this.rail.lock(tclk.lockTerms(step.state));
+        this.set("locking", { lock: { type: "lock", from: this.app.did, contract: st.contract, rail: "paper", ref } });
+      }
       try {
-        await this.app.signer.post(st.room, tclk.encodeFrame(st.lock ?? { type: "lock", from: this.app.did, contract: st.contract, rail: "paper", ref: st.contract }), { gateUntilMs: o.claimByMs });
+        await this.app.signer.post(st.room, tclk.encodeFrame(this.st.lock), { gateUntilMs: o.claimByMs });
       } catch (e) {
         this.note(e.status === 429 ? L("\u4F1A\u5834\u306E\u90E8\u5C4B\u306E\u6570\u304C\u4ECA\u65E5\u306E\u4E0A\u9650\u306B\u8FD1\u3044\u306E\u3067\u3001\u5C11\u3057\u5F85\u3063\u3066\u304B\u3089\u3082\u3046\u4E00\u5EA6\u958B\u304D\u307E\u3059", "The venue is near today's room limit, so it will try again in a moment.") : L(`\u90E8\u5C4B\u3092\u958B\u3051\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09\u3002\u3082\u3046\u4E00\u5EA6\u8A66\u3057\u307E\u3059`, `Couldn't open a room (${e.message}). Trying again.`));
         return;
@@ -182,11 +193,12 @@ class Deal {
       }
       if (reveal) return this.finish(lines, reveal.ms);
       if (now >= o.refundAfterMs) {
+        const ref = st.lock?.ref ?? st.contract;
         try {
-          await this.rail.refund(st.lock.ref);
+          await this.rail.refund(ref);
         } catch {
         }
-        await this.app.signer.post(st.room, tclk.encodeFrame({ type: "refund", from: this.app.did, contract: st.contract, ref: st.lock.ref }));
+        await this.app.signer.post(st.room, tclk.encodeFrame({ type: "refund", from: this.app.did, contract: st.contract, ref }));
         this.set("refunded", { done: true, locked: false });
         this.note(L("\u671F\u9650\u307E\u3067\u306B\u5C4A\u304B\u306A\u304B\u3063\u305F\u306E\u3067\u3001PAPER \u3092\u623B\u3057\u307E\u3057\u305F", "It didn't arrive in time, so the PAPER was returned."));
       }

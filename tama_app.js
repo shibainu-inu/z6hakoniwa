@@ -601,14 +601,21 @@ function renderEgg() {
       <h2>${L("HAKO \u3092\u8FCE\u3048\u308B", "Welcome a HAKO")}</h2>
       <p>${L("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002", "A key is made inside this browser and your HAKO is born. The key is never sent anywhere. If you lose it you can't move your HAKO, so save the key file once it is born.")}</p>
       <p class="note">${L(`\u306F\u3058\u3081\u306B ${fmt(app.box.initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002`, `You start with ${fmt(app.box.initial_paper)} $PAPER. PAPER is only a score inside this garden and has no monetary value. It can't be cashed out, bought or sold.`)}</p>
-      <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08\u9375\u3092\u958B\u304F\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09", "Passphrase (used to unlock your key)")}<span class="pw"><input id="p1" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2"></button></span></label>
-      <label>${L("\u3082\u3046\u4E00\u5EA6", "Once more")}<span class="pw"><input id="p2" type="password" autocomplete="new-password"></span></label>
+      <form class="keyf" id="kf" method="post" action="#">
+      <input class="vh" id="u1" name="username" type="text" autocomplete="username" tabindex="-1" aria-hidden="true" value="">
+      <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08HAKO \u3092\u8D77\u3053\u3059\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09", "Passphrase (to wake your HAKO)")}<span class="pw"><input id="p1" name="password" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2"></button></span></label>
+      <label>${L("\u3082\u3046\u4E00\u5EA6", "Once more")}<span class="pw"><input id="p2" name="password2" type="password" autocomplete="new-password"></span></label>
+      <p class="small">${L("\u30D6\u30E9\u30A6\u30B6\u306B\u30D1\u30B9\u30EF\u30FC\u30C9\u306E\u4FDD\u5B58\u3092\u3059\u3059\u3081\u3089\u308C\u305F\u3089\u3001\u4FDD\u5B58\u3059\u308B\u3068\u6B21\u304B\u3089\u81EA\u52D5\u3067\u5165\u529B\u3055\u308C\u307E\u3059\u3002\u5171\u7528\u306E\u7AEF\u672B\u3067\u306F\u4FDD\u5B58\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002", "If your browser offers to save it, you can, and it will fill in next time. Don't save it on a shared device.")}</p>
       <p id="why" class="why"></p>
-      <div class="actions"><button class="btn" id="born" style="--c:var(--good)"><span class="dot" style="background:var(--good)"></span>${L("\u751F\u307E\u308C\u308B", "Be born")}</button></div>
+      <div class="actions"><button type="submit" class="btn" id="born" style="--c:var(--good)"><span class="dot" style="background:var(--good)"></span>${L("\u751F\u307E\u308C\u308B", "Be born")}</button></div>
+      </form>
       <p class="small">${L("\u9375\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308B\u3068\u304D\u306F", "Have a key file?")} <label class="link">${L("\u30D5\u30A1\u30A4\u30EB\u304B\u3089\u8AAD\u307F\u8FBC\u3080", "Load it from a file")}<input id="file" type="file" accept="application/json" hidden></label></p>
     </section>`;
   eyes();
-  $("born").onclick = register;
+  $("kf").onsubmit = (e) => {
+    e.preventDefault();
+    register();
+  };
   $("file").onchange = importKey;
 }
 function eyes() {
@@ -639,16 +646,20 @@ function renderUnlock() {
   $("view").innerHTML = `
     <section class="card" id="me">
       <div class="stage plain">${app.did ? `<div class="hako">${sleeping()}</div>` : ""}</div>
-      <p>${L(`HAKO \u2026${esc(app.did.slice(-8))} \u304C\u7720\u3063\u3066\u3044\u307E\u3059\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3067\u9375\u3092\u958B\u3044\u3066\u304F\u3060\u3055\u3044\u3002`, `HAKO \u2026${esc(app.did.slice(-8))} is asleep. Unlock the key with your passphrase.`)}</p>
-      <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA", "Passphrase")}<span class="pw"><input id="p1" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="p1"></button></span></label>
+      <p>${L(`HAKO \u2026${esc(app.did.slice(-8))} \u304C\u7720\u3063\u3066\u3044\u307E\u3059\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u5165\u308C\u308B\u3068\u8D77\u304D\u307E\u3059\u3002`, `HAKO \u2026${esc(app.did.slice(-8))} is asleep. Enter your passphrase to wake it.`)}</p>
+      <form class="keyf" id="kf" method="post" action="#">
+      <input class="vh" name="username" type="text" autocomplete="username" tabindex="-1" aria-hidden="true" value="${esc(K.loginName(app.did))}" readonly>
+      <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA", "Passphrase")}<span class="pw"><input id="p1" name="password" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="p1"></button></span></label>
+      <p class="small">${L("\u30D6\u30E9\u30A6\u30B6\u306B\u30D1\u30B9\u30EF\u30FC\u30C9\u306E\u4FDD\u5B58\u3092\u3059\u3059\u3081\u3089\u308C\u305F\u3089\u3001\u4FDD\u5B58\u3059\u308B\u3068\u6B21\u304B\u3089\u81EA\u52D5\u3067\u5165\u529B\u3055\u308C\u307E\u3059\u3002\u5171\u7528\u306E\u7AEF\u672B\u3067\u306F\u4FDD\u5B58\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002", "If your browser offers to save it, you can, and it will fill in next time. Don't save it on a shared device.")}</p>
       <p id="why" class="why"></p>
-      <div class="actions"><button class="btn" id="open">${L("\u9375\u3092\u958B\u304F", "Unlock")}</button></div>
-      <label class="small"><input id="tab" type="checkbox" checked> ${L("\u30BF\u30D6\u3092\u9589\u3058\u308B\u307E\u3067\u899A\u3048\u308B\uFF08\u958B\u3044\u3066\u3044\u308B\u307B\u304B\u306E\u30BF\u30D6\u3067\u3082\u3001\u5165\u308C\u76F4\u3055\u305A\u306B\u4F7F\u3048\u307E\u3059\uFF09", "Remember until this tab is closed (other open tabs can use it without re-entering)")}</label>
+      <div class="actions"><button type="submit" class="btn" id="open">${L("HAKO \u3092\u8D77\u3053\u3059", "Wake HAKO")}</button></div>
+      <label class="small"><input id="tab" type="checkbox" checked> ${L("\u3053\u306E\u30BF\u30D6\u3092\u9589\u3058\u308B\u307E\u3067\u8D77\u3053\u3057\u305F\u307E\u307E\u306B\u3059\u308B\uFF08\u958B\u3044\u3066\u3044\u308B\u307B\u304B\u306E\u30BF\u30D6\u3067\u3082\u3001\u5165\u308C\u76F4\u3055\u305A\u306B\u4F7F\u3048\u307E\u3059\uFF09", "Keep awake until this tab is closed (works in your other open tabs too)")}</label>
+      </form>
     </section>`;
   eyes();
-  $("open").onclick = unlock;
-  $("p1").onkeydown = (e) => {
-    if (e.key === "Enter") unlock();
+  $("kf").onsubmit = (e) => {
+    e.preventDefault();
+    unlock();
   };
 }
 const say = (s, bad = true) => {
@@ -670,6 +681,8 @@ async function register() {
   const { priv, did, rec } = await K.makeKey(p1);
   K.saveRec(rec);
   await K.rememberTab(priv, did);
+  const u = $("u1");
+  if (u) u.value = K.loginName(did);
   app.did = did;
   app.priv = priv;
   app.signer = watched(makeSigner(did, priv));
@@ -680,6 +693,7 @@ async function register() {
     return;
   }
   addLocal(did, { t: "join", ms: Date.now() });
+  K.offerSave(did, p1);
   K.downloadRec(rec);
   app.rebornUntil = Date.now() + 2500;
   setTimeout(render, 2600);
@@ -699,9 +713,11 @@ async function importKey(ev) {
 async function unlock() {
   const rec = K.loadRec();
   try {
-    const priv = await K.openKey(rec, $("p1").value);
+    const pass = $("p1").value;
+    const priv = await K.openKey(rec, pass);
     app.priv = priv;
     app.signer = watched(makeSigner(app.did, priv));
+    K.offerSave(app.did, pass);
     if ($("tab").checked) await K.rememberTab(priv, app.did);
     await boot();
   } catch {
