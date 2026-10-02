@@ -6,6 +6,7 @@ import * as K from "./tama_key.js";
 import { Deal, dealKinds } from "./tama_deal.js";
 import { lifetime, unlocked, nextUnlock, whenText, roomSvg, artSvg, frameSvg, scrapSvg, svgToPng, spot, HAKO_PX } from "./tama_room.js";
 import { renderGarden } from "./tama_garden.js";
+import { pickPhrase, phraseText } from "./tama_phrases.js";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
@@ -217,17 +218,69 @@ function sayLines(fold) {
   for (const x of (fold?.meals ?? []).slice(-3).reverse()) if (x.line && !out.includes(x.line)) out.push(x.line);
   return out;
 }
+function phraseState() {
+  const st = app.st ?? {}, now = Date.now();
+  const ev = merged(app.stats, app.did).events ?? [];
+  const last = (t) => ev.reduce((m, e) => e.t === t && e.ms > (m?.ms ?? 0) ? e : m, null);
+  const meal = last("meal"), out = last("out");
+  const outs = app.stats?.did?.[app.did]?.outs ?? [];
+  const twist = outs.length ? outs[outs.length - 1]?.facts?.metric ?? null : null;
+  const waiting = Object.values(app.deals ?? {}).some((d) => d.st && !d.st.done && ["offered", "locking", "locked", "waiting"].includes(d.st.stage));
+  return { s: {
+    hour: (new Date()).getHours(),
+    hunger: st.hunger,
+    mood: st.mood,
+    fedAgoMin: meal ? (now - meal.ms) / 6e4 : null,
+    homeAgoMin: out ? (now - out.ms) / 6e4 : null,
+    twist,
+    level: st.accLevel ?? 1,
+    waiting
+  }, seed: meal?.contract ?? app.did };
+}
+function nextPhrase(fresh) {
+  if (!app.P) return null;
+  const { s, seed } = phraseState();
+  const day = localDay(Date.now(), app.box), ik = `tama_phr_inv:${app.did}:${day}`;
+  let used = 0;
+  try {
+    used = Number(localStorage.getItem(ik) || 0);
+  } catch {
+    used = 0;
+  }
+  app.chatN = (app.chatN ?? 0) + 1;
+  const p = pickPhrase(app.P, s, `${seed}:${app.chatN}:${Math.floor(Date.now() / 6e4)}`, { avoid: app.lastPhrase, investLeft: Number(app.P.invest_per_day ?? 2) - used, force: fresh ? "fed" : null });
+  if (!p) return null;
+  app.lastPhrase = p.id;
+  if (p.invest) try {
+    localStorage.setItem(ik, String(used + 1));
+  } catch {
+  }
+  return p;
+}
 function chatter(el, my) {
   if (!el) return;
   const speak = (fresh) => {
     if (my !== live || !el.isConnected) return;
-    const lines = app.sayLines ?? [];
-    if (lines.length && (fresh || Math.random() < 0.6)) {
-      el.firstChild.textContent = brief(fresh ? lines[0] : lines[Math.floor(Math.random() * Math.min(lines.length, 3))]);
-      el.classList.add("on");
-      setTimeout(() => {
-        if (my === live) el.classList.remove("on");
-      }, 6e3);
+    if (fresh || Math.random() < 0.6) {
+      const p = nextPhrase(fresh), lines = app.sayLines ?? [];
+      const t = p ? phraseText(p, getLang()) : lines.length ? { short: brief(fresh ? lines[0] : lines[Math.floor(Math.random() * Math.min(lines.length, 3))]), gloss: "", full: "" } : null;
+      if (t) {
+        el.firstChild.textContent = t.short;
+        let g = el.querySelector("small");
+        if (t.gloss) {
+          if (!g) {
+            g = document.createElement("small");
+            el.appendChild(g);
+          }
+          g.textContent = t.gloss;
+        } else g?.remove();
+        if (t.full && t.full !== t.short) el.title = t.full;
+        else el.removeAttribute("title");
+        el.classList.add("on");
+        setTimeout(() => {
+          if (my === live) el.classList.remove("on");
+        }, 6e3);
+      }
     }
     setTimeout(() => speak(false), 14e3 + Math.random() * 16e3);
   };
@@ -808,6 +861,11 @@ async function start() {
     app.F = await (await fetch("tama_furniture.json")).json();
   } catch {
     app.F = null;
+  }
+  try {
+    app.P = await (await fetch("tama_phrases.json")).json();
+  } catch {
+    app.P = null;
   }
   try {
     app.moods = await (await fetch(`moods.json?t=${Date.now()}`, { cache: "no-store" })).json();
