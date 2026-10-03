@@ -1,4 +1,5 @@
 {
+ "was_until": 1791026100000,
  "px": 3,
  "palette": {
   "k": "ink",
@@ -23,6 +24,10 @@
    "place": "floor",
    "slot": 0,
    "when": [
+    "peak",
+    10100
+   ],
+   "was": [
     "meals",
     1
    ],
@@ -41,6 +46,10 @@
    "place": "floor",
    "slot": 1,
    "when": [
+    "peak",
+    10200
+   ],
+   "was": [
     "meals",
     5
    ],
@@ -69,6 +78,10 @@
    "place": "floor",
    "slot": 6,
    "when": [
+    "peak",
+    10300
+   ],
+   "was": [
     "outs",
     1
    ],
@@ -95,6 +108,10 @@
    "place": "floor",
    "slot": 2,
    "when": [
+    "peak",
+    10450
+   ],
+   "was": [
     "days",
     3
    ],
@@ -133,6 +150,10 @@
    "place": "floor",
    "slot": 5,
    "when": [
+    "peak",
+    10550
+   ],
+   "was": [
     "plays",
     1
    ],
@@ -159,6 +180,10 @@
    "place": "wall",
    "slot": 0,
    "when": [
+    "peak",
+    10700
+   ],
+   "was": [
     "outs",
     5
    ],
@@ -192,6 +217,10 @@
    "place": "wall",
    "slot": 1,
    "when": [
+    "peak",
+    10800
+   ],
+   "was": [
     "days",
     7
    ],
@@ -217,6 +246,10 @@
    "place": "wall",
    "slot": 2,
    "when": [
+    "peak",
+    10900
+   ],
+   "was": [
     "plays",
     10
    ],
@@ -241,6 +274,10 @@
    "place": "floor",
    "slot": 7,
    "when": [
+    "peak",
+    11000
+   ],
+   "was": [
     "meals",
     20
    ],

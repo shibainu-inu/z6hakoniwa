@@ -22,6 +22,14 @@ function ago(ms, now = Date.now()) {
   return L(`${Math.floor(s / 86400)}\u65E5\u524D`, `${Math.floor(s / 86400)}d ago`);
 }
 function gardenEvents(stats) {
+  if (stats?.feed) return stats.feed.map((r) => ({
+    did: r.did,
+    ms: r.ms,
+    kind: r.kind,
+    // 庭用の garden.json（tama_site.split_ledger）
+    what: r.kind === "join" ? L("\u751F\u307E\u308C\u305F", "was born") : r.kind === "reborn" ? L("\u751F\u307E\u308C\u5909\u308F\u3063\u305F", "was reborn") : r.kind === "play" ? L(`${r.stake} \u3092\u8CED\u3051\u3066 ${r.payout} \u623B\u3063\u305F`, `bet ${r.stake}, got ${r.payout} back`) : r.line ?? "",
+    ...r.kind === "play" ? { delta: r.payout - r.stake } : {}
+  }));
   const out = [];
   for (const [did, d] of Object.entries(stats?.did ?? {})) {
     if (d.operator) continue;
@@ -46,9 +54,11 @@ function renderGarden(stats, moods, box, F = null) {
   const hakos = Number(stats?.box?.hakos ?? 0);
   const today = box ? localDay(now, box) : null;
   const todays = today ? ev.filter((e) => localDay(e.ms, box) === today) : [];
-  const count = (k) => todays.filter((e) => e.kind === k).length;
+  const day = today ? stats?.counts?.[today] : null;
+  const count = (k) => day ? Number(day[k] ?? 0) : todays.filter((e) => e.kind === k).length;
   const tw = moods?.twist, KIND = KINDS();
-  const items = ev.slice(0, 14).map((e) => {
+  const known = ev.filter((e) => KIND[e.kind]);
+  const items = known.slice(0, 14).map((e) => {
     const [label] = KIND[e.kind];
     const tail = e.kind === "play" ? `<span class="${e.delta >= 0 ? "up" : "down"}">${e.delta >= 0 ? "+" : ""}${e.delta}</span>` : `<span class="dim">${ago(e.ms, now)}</span>`;
     return `<span class="item">${avatar(e.did, 2)}<span class="mono">${esc(short(e.did))}</span>${label} ${tail}</span>`;
@@ -60,13 +70,13 @@ function renderGarden(stats, moods, box, F = null) {
   if (t) t.innerHTML = items.join("") + items.join("");
   const live = $("live");
   if (live) live.innerHTML = `<p class="label"><span class="pulse"></span>LIVE \xB7 HAKO ${fmt(hakos)}</p>
-    <div class="big mono">${fmt(todays.length)}<span class="sub"> ${L("\u4ECA\u65E5\u306E\u51FA\u6765\u4E8B", "events today")}</span></div>
+    <div class="big mono">${fmt(day ? Object.values(day).reduce((a, b) => a + Number(b), 0) : todays.length)}<span class="sub"> ${L("\u4ECA\u65E5\u306E\u51FA\u6765\u4E8B", "events today")}</span></div>
     <p class="sub mono">${L("\u3054\u306F\u3093", "Meals")} ${count("meal")} \xB7 ${L("\u304A\u3067\u304B\u3051", "Outings")} ${count("out")} \xB7 ${L("\u3042\u305D\u3076", "Plays")} ${count("play")}</p>
     <p class="label" style="margin-top:14px">${L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857\u306E\u96F0\u56F2\u6C17", "Mood of Technocore")}${moods?.hour ? L(` \xB7 ${esc(moods.hour.slice(11, 13))}\u6642\u53F0 UTC`, ` \xB7 ${esc(moods.hour.slice(11, 13))}:00 UTC`) : ""}</p>
     ${tw ? `<div>${L(`<b>${esc(moodLabel(tw))}</b> \u304C\u666E\u6BB5\u3088\u308A${tw.dir === "higher" ? "\u591A\u3044" : "\u5C11\u306A\u3044"}`, `<b>${esc(moodLabel(tw))}</b> is ${tw.dir === "higher" ? "higher" : "lower"} than usual`)}</div><div class="mono sub">${esc(tw.value)} ${L("\uFF0F \u666E\u6BB5", "/ usually")} ${esc(tw.base)}</div>` : `<div class="sub">${L("\u9727\u3067\u3088\u304F\u898B\u3048\u306A\u3044\uFF08\u6570\u5B57\u306F\u88DC\u3044\u307E\u305B\u3093\uFF09", "Too foggy to see (numbers are never made up)")}</div>`}`;
   const g = $("garden");
   if (g) g.innerHTML = `<div class="head"><h2 style="margin:0">${L("\u5EAD\u306E\u3088\u3046\u3059", "Garden")}</h2><span class="label" style="margin:0">${L("\u5E33\u7C3F\u4FC2", "Ledger")} ${esc(String(stats?.box?.generated ?? "").slice(11, 16))} UTC</span></div>
-    ${ev.length ? `<ul>${ev.slice(0, 12).map((e) => {
+    ${known.length ? `<ul>${known.slice(0, 12).map((e) => {
     const [label, color] = KIND[e.kind];
     return `<li><span class="av">${avatar(e.did, 2)}</span><div><div class="who2">${label}<span class="mono">${esc(short(e.did))}</span></div><div class="what">${esc(e.what)}</div></div><span class="t mono" style="color:${color}">${ago(e.ms, now)}</span></li>`;
   }).join("")}</ul>` : `<p class="small">${L("\u307E\u3060\u51FA\u6765\u4E8B\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u5E33\u7C3F\u4FC2\u306F 1 \u6642\u9593\u3054\u3068\u306B\u6570\u3048\u307E\u3059\u3002", "Nothing has happened yet. The ledger keeper counts once an hour.")}</p>`}`;

@@ -4,11 +4,33 @@ function localDay(ms, box) {
 }
 const dayNum = (d) => Math.round(Date.parse(`${d}T00:00:00Z`) / 864e5);
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+function mergeCovers(list) {
+  const out = [];
+  for (const [a, b] of list.filter(([a2, b2]) => b2 > a2).sort((x, y) => x[0] - y[0] || x[1] - y[1])) {
+    const last = out[out.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else out.push([a, b]);
+  }
+  return out;
+}
+function graveTime(start, need, covers) {
+  let t = start, left = need;
+  for (const [a, b] of covers) {
+    if (b <= t) continue;
+    if (a > t) {
+      if (a - t >= left) return t + left;
+      left -= a - t;
+    }
+    t = Math.max(t, b);
+  }
+  return t + left;
+}
 function lifeState(events, now, box) {
   const ev = events.map((e, i) => ({ ...e, i })).sort((a, b) => a.ms - b.ms || a.i - b.i);
   const hr = Number(box.hunger_per_hour), mr = Number(box.mood_per_hour);
   const hMax = Number(box.hunger_max), mMax = Number(box.mood_max);
   const graveMs = Number(box.grave_after_hours) * HOUR;
+  const covers = mergeCovers(ev.filter((e) => e.t === "sit").map((e) => [Number(e.ms), Number(e.until)]));
   let s = null;
   let rebirths = 0;
   const fresh = (ms, reborn = false) => ({
@@ -33,9 +55,12 @@ function lifeState(events, now, box) {
       } else s.hunger = h;
     }
     s.mood = Math.max(0, s.mood - mr * dtH);
-    if (s.zeroSince !== null && t - s.zeroSince >= graveMs) {
-      s.grave = true;
-      s.graveAt = s.zeroSince + graveMs;
+    if (s.zeroSince !== null) {
+      const g = graveTime(s.zeroSince, graveMs, covers);
+      if (t >= g) {
+        s.grave = true;
+        s.graveAt = g;
+      }
     }
     s.at = t;
   };
@@ -61,6 +86,7 @@ function lifeState(events, now, box) {
       s.mood = clamp(s.mood + Number(box.play_mood), 0, mMax);
     } else continue;
     s.zeroSince = s.hunger > 0 ? null : s.zeroSince ?? e.ms;
+    if (e.t === "out") continue;
     s.days.add(localDay(e.ms, box));
     s.lastCare = e.ms;
     s.cares += 1;
@@ -70,14 +96,19 @@ function lifeState(events, now, box) {
   const today = localDay(now, box);
   const days = [...s.days].sort();
   let streak = 0;
+  const frozen = new Set();
+  for (const [a, b] of covers) {
+    for (let d = dayNum(localDay(Math.max(a, s.bornAt), box)), e = dayNum(localDay(Math.min(b, now), box)); d <= e; d++) frozen.add(d);
+  }
   if (!s.grave && days.length) {
-    let want = days.includes(today) ? dayNum(today) : dayNum(today) - 1;
     const set = new Set(days.map(dayNum));
-    while (set.has(want)) {
-      streak += 1;
-      want -= 1;
+    const lo = Math.min(...set, ...frozen);
+    for (let want = dayNum(today), first = true; want >= lo; want--, first = false) {
+      if (set.has(want)) streak += 1;
+      else if (!first && !frozen.has(want)) break;
     }
   }
+  const cover = covers.find(([a, b]) => a <= now && now < b);
   const outsToday = ev.filter((e) => e.t === "out" && e.ms >= s.bornAt && localDay(e.ms, box) === today).length;
   return {
     born: true,
@@ -94,14 +125,15 @@ function lifeState(events, now, box) {
     lastCare: s.lastCare ?? null,
     cares: s.cares,
     stage: growthStage(s.cares, days.length, now - s.bornAt, box),
-    accLevel: accLevel(s.cares, growthStage(s.cares, days.length, now - s.bornAt, box), box)
+    accLevel: accLevel(days.length, growthStage(s.cares, days.length, now - s.bornAt, box), box),
+    sitUntil: cover ? cover[1] : null
   };
 }
 const round2 = (x) => Math.round(x * 100) / 100;
-function accLevel(cares, stage, box) {
+function accLevel(careDays, stage, box) {
   if (stage !== "hako") return 1;
   let lv = 1;
-  for (const c of box.acc_grow_cares ?? []) if (cares >= Number(c)) lv += 1;
+  for (const c of box.acc_grow_days ?? []) if (careDays >= Number(c)) lv += 1;
   return Math.min(lv, 4);
 }
 function growthStage(cares, careDays, ageMs, box) {
@@ -109,6 +141,22 @@ function growthStage(cares, careDays, ageMs, box) {
   if (cares < Number(box.hatch_cares ?? 0) || h < Number(box.hatch_hours ?? 0)) return "egg";
   if (h < Number(box.grow_hours ?? 0) || careDays < Number(box.grow_care_days ?? 0)) return "baby";
   return "hako";
+}
+const playTableAt = (box, lockMs) => box.play_table_from != null && lockMs < Number(box.play_table_from) && box.play_table_before ? box.play_table_before : box.play_table;
+async function playRoll(secret, contract) {
+  const hx = (s) => String(s ?? "").replace(/^0x/, "");
+  const a = hx(secret), c = hx(contract);
+  if (!/^([0-9a-f]{2})+$/i.test(a) || !/^([0-9a-f]{2})+$/i.test(c)) return null;
+  const bytes = Uint8Array.from((a + c).match(/../g), (h) => parseInt(h, 16));
+  return "0x" + [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+async function playPayoutAt(box, lockMs, contract, secret) {
+  const table = playTableAt(box, lockMs);
+  if (box.play_secret_from != null && lockMs >= Number(box.play_secret_from)) {
+    const roll = await playRoll(secret, contract);
+    return roll ? playPayout(roll, table) : null;
+  }
+  return playPayout(contract, table);
 }
 function playPayout(contract, table) {
   const hex = String(contract).replace(/^0x/, "");
@@ -123,6 +171,7 @@ function playPayout(contract, table) {
 }
 const STRIP = /^[ \t\r]+|[ \t\r]+$/g;
 const DID_RE = /did:key|z6mk[1-9a-z]{8,}/i;
+const URL_RE = /(:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|xyz|ly|me|app|dev|jp|co|gg|link|site|top|info|biz|ru|cn|tk|click|online|shop)\b)/i;
 const WORD_RE = /[a-z0-9{}']+/g;
 const cpLen = (s) => Array.from(String(s)).length;
 const words = (s) => String(s).toLowerCase().match(WORD_RE) ?? [];
@@ -143,6 +192,7 @@ function checkLines(lines, { n, maxChars = 140, instruction = "", fragmentWords 
     if (l === "") return { ok: false, why: `${k + 1}:empty` };
     if (cpLen(l) > maxChars) return { ok: false, why: `${k + 1}:over ${maxChars}` };
     if (DID_RE.test(l)) return { ok: false, why: `${k + 1}:did` };
+    if (URL_RE.test(l)) return { ok: false, why: `${k + 1}:url` };
     if (seen.has(l)) return { ok: false, why: `${k + 1}:duplicate` };
     seen.add(l);
     const lw = words(l);
@@ -184,29 +234,94 @@ function parseTama(text) {
 }
 const jobId = (box, kind, did, ms) => `${box.box}-${kind}-${String(did).slice(-8).toLowerCase()}-${ms}`;
 function jobKind(box, id) {
-  const m = new RegExp(`^${box.box}-(meal|out|play)-[0-9a-z]{8}-[0-9]+$`).exec(String(id ?? ""));
+  const m = new RegExp(`^${box.box}-(meal|out|play|sit|sitplay)-[0-9a-z]{8}-[0-9]+$`).exec(String(id ?? ""));
   return m ? m[1] : null;
 }
-const acceptKey = (payer, kind) => `${String(payer).slice(-8).toLowerCase()}-${kind}`;
+const isSit = (kind) => kind === "sit" || kind === "sitplay";
+const acceptKey = (payer, kind, offerId = "") => `${String(payer).slice(-8).toLowerCase()}-${kind}` + (isSit(kind) ? `-${String(offerId).slice(2, 10)}` : "");
+function sitSchedule(box, t0, n, plays = 0, first = Number(box.sit_first_hours ?? box.sit_every_hours)) {
+  const one = (kind, k, j, at) => {
+    const claimByMs = at + Math.round(Number(box.sit_window_hours) * HOUR);
+    return { kind, k, j, at, claimByMs, refundAfterMs: claimByMs + HOUR };
+  };
+  const out = [];
+  for (let k = 1; k <= n; k++) {
+    const meal = t0 + Math.round((first + (k - 1) * Number(box.sit_every_hours)) * HOUR);
+    out.push(one("sit", k, 0, meal));
+    for (let j = 1; j <= plays; j++) out.push(one("sitplay", k, j, meal + Math.round(j * Number(box.sit_play_gap_hours) * HOUR)));
+  }
+  return out;
+}
+function sitWhy(box, offer, lockMs) {
+  let at;
+  try {
+    at = JSON.parse(offer.job.context).at;
+  } catch {
+    return "no at";
+  }
+  if (typeof at !== "number" || !Number.isInteger(at)) return "no at";
+  if (offer.claimByMs !== at + Math.round(Number(box.sit_window_hours) * HOUR) || offer.refundAfterMs !== offer.claimByMs + HOUR) return "deadlines";
+  if (at <= lockMs) return "at not ahead";
+  if (at - lockMs > Number(box.sit_max_days) * Number(box.sit_every_hours) * HOUR + HOUR) return "too far";
+  return null;
+}
+const HUNGER_WORDS = ["starving", "hungry", "a bit peckish"], MOOD_WORDS = ["gloomy", "calm", "cheerful"];
+const MOOD_LABELS = {
+  flow: "how busy the market was",
+  alike: "the share of messages that looked alike",
+  nocontract: "the share of accepts without a contract field",
+  refund: "the share of deals that ended in a refund",
+  newcomer: "the share of faces never seen before"
+};
+const FACT_VALUE = /^[0-9]{1,6}(%| lines a minute)$/;
+function promptOk(box, kind, context) {
+  if (kind === "play") return true;
+  let c = null;
+  try {
+    c = JSON.parse(String(context));
+  } catch {
+    return false;
+  }
+  if (!c || typeof c !== "object" || typeof c.prompt !== "string") return false;
+  if (kind === "out") {
+    const f = c.facts;
+    if (!f || typeof f !== "object" || MOOD_LABELS[f.metric] !== f.label || !["higher", "lower"].includes(f.dir) || !FACT_VALUE.test(String(f.value)) || !FACT_VALUE.test(String(f.base))) return false;
+    return c.prompt === outPrompt(box.out_instruction, f);
+  }
+  const ins = kind === "sitplay" ? box.sit_play_instruction : box.meal_instruction;
+  return HUNGER_WORDS.some((h) => MOOD_WORDS.some((m) => c.prompt === collapseSpace(`${ins} Mood words: ${h}, ${m}.`)));
+}
 export {
   HOUR,
+  HUNGER_WORDS,
+  MOOD_LABELS,
+  MOOD_WORDS,
   TAMA,
   accLevel,
   acceptKey,
   checkLines,
   collapseSpace,
   fillArticle,
+  graveTime,
   growthStage,
+  isSit,
   jobId,
   jobKind,
   lifeState,
   localDay,
   mealPrompt,
+  mergeCovers,
   outPrompt,
   parseTama,
   playPayout,
+  playPayoutAt,
+  playRoll,
+  playTableAt,
+  promptOk,
   rewardOf,
   round2,
+  sitSchedule,
+  sitWhy,
   splitLines,
   tamaLine,
   toAscii

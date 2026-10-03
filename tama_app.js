@@ -1,9 +1,9 @@
-import { lifeState, localDay, tamaLine, fillArticle, rewardOf } from "./tama_core.js";
+import { lifeState, localDay, tamaLine, fillArticle, rewardOf, sitSchedule, sitWhy, HOUR } from "./tama_core.js";
 import { spriteSvg, spriteRows } from "./tama_sprite.js";
 import { L, getLang, setLang } from "./tama_i18n.js";
 import { setVenue, makeSigner, readTail } from "./tama_net.js";
 import * as K from "./tama_key.js";
-import { Deal, dealKinds } from "./tama_deal.js";
+import { Deal, SitDeal, slotKind, dealKinds } from "./tama_deal.js";
 import { lifetime, unlocked, nextUnlock, whenText, roomSvg, artSvg, frameSvg, scrapSvg, svgToPng, spot, HAKO_PX } from "./tama_room.js";
 import { renderGarden } from "./tama_garden.js";
 import { pickPhrase, phraseText } from "./tama_phrases.js";
@@ -11,7 +11,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
 const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
-const app = { stats: null, box: null, did: null, priv: null, signer: null, motion: null, deals: {} };
+const app = { stats: null, box: null, did: null, priv: null, signer: null, motion: null, deals: {}, sits: [] };
 const LKEY = (did) => `tama_local_v1:${did}`;
 function loadLocal(did) {
   try {
@@ -46,7 +46,7 @@ function merged(stats, did) {
   let balance = d ? Number(d.balance) : 0;
   for (const x of loc.deltas) if (keys.has(x.key)) balance += x.delta;
   if (!d && keep.some((e) => e.t === "join")) balance += Number(app.box.initial_paper);
-  for (const x of Object.values(app.deals)) if (x.st?.locked && !x.st?.done) balance -= Number(x.st.amount ?? 0);
+  for (const x of [...Object.values(app.deals), ...app.sits ?? []]) if (x.st?.locked && !x.st?.done) balance -= Number(x.st.amount ?? 0);
   return { events: [...foldEv, ...keep], balance, fromFold: !!d, fold: d ?? null };
 }
 const FRAMES = {
@@ -214,8 +214,8 @@ function brief(line) {
 }
 function sayLines(fold) {
   const out = [];
-  if (app.lastSay) out.push(app.lastSay);
-  for (const x of (fold?.meals ?? []).slice(-3).reverse()) if (x.line && !out.includes(x.line)) out.push(x.line);
+  if (app.lastSay && !app.lastSayMenu) out.push(app.lastSay);
+  for (const x of (fold?.meals ?? []).filter((m) => !m.menu).slice(-3).reverse()) if (x.line && !out.includes(x.line)) out.push(x.line);
   return out;
 }
 function phraseState() {
@@ -367,9 +367,8 @@ function stateWord(st) {
   return { grave: L("\u304A\u5893", "Resting"), out: L("\u304A\u3067\u304B\u3051\u4E2D", "Out"), eat: L("\u98DF\u4E8B\u4E2D", "Eating"), happy: L("\u3054\u304D\u3052\u3093", "Happy"), sad: L("\u3057\u3087\u3093\u307C\u308A", "Down"), reborn: L("\u751F\u307E\u308C\u5909\u308F\u308A", "Reborn") }[k] ?? (st.hunger >= 60 ? L("\u3052\u3093\u304D", "Lively") : L("\u3075\u3064\u3046", "OK"));
 }
 function lastSay(fold) {
-  if (app.lastSay) return app.lastSay;
-  const meals = fold?.meals ?? [];
-  return meals.length ? meals[meals.length - 1].line : null;
+  const meals = fold?.meals ?? [], x = app.lastSay ? { line: app.lastSay, menu: app.lastSayMenu } : meals[meals.length - 1];
+  return !x ? null : x.menu ? `Today's meal: ${x.line}` : x.line;
 }
 function motionOf(st) {
   if (!st.born) return "normal";
@@ -383,9 +382,34 @@ function motionOf(st) {
   if (st.hunger < 25 || st.mood < 20) return "sad";
   return "normal";
 }
+function movingNotice() {
+  if (!location.hostname.endsWith("github.io")) return;
+  let el = $("moving");
+  if (!el) {
+    el = document.createElement("section");
+    el.id = "moving";
+    el.className = "card";
+    $("view").before(el);
+  }
+  const h = `<p><b>${L("\u3053\u306E\u5834\u6240\u3067\u306E\u516C\u958B\u306F 10\u67084\u65E5\uFF08\u65E5\uFF0912:00\uFF08\u65E5\u672C\u6642\u9593\uFF09\u3067\u7D42\u308F\u308A\u307E\u3059\u3002", "This page closes on Sunday, October 4, at 12:00 noon Japan time.")}</b></p>
+    <p>${L("\u3042\u306A\u305F\u306E HAKO \u3092\u7D9A\u3051\u308B\u306B\u306F\u3001\u305D\u308C\u307E\u3067\u306B\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u65B0\u3057\u3044\u5834\u6240\u3067\u306F\u3001\u305D\u306E\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u8AAD\u307F\u8FBC\u3093\u3067\u7D9A\u3051\u3089\u308C\u307E\u3059\u3002", "To keep your HAKO, save your key file before then. You can load it at the new location to carry on.")}</p>
+    ${K.loadRec() ? `<div class="actions"><button class="btn" id="movesave">${L("\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58", "Save key file")}</button></div>` : ""}`;
+  if (el.dataset.h === h) return;
+  el.innerHTML = h;
+  el.dataset.h = h;
+  const b = $("movesave");
+  if (b) b.onclick = () => {
+    const rec = K.loadRec();
+    if (rec) {
+      K.downloadRec(rec);
+      say(L("\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3068\u5225\u306E\u5834\u6240\u306B\u3057\u307E\u3063\u3066\u304F\u3060\u3055\u3044", "Key file saved. Keep it somewhere separate from your passphrase."), false);
+    }
+  };
+}
 function render() {
   const view = $("view");
   renderChrome();
+  movingNotice();
   if (!app.did) return renderEgg();
   if (!app.priv) return renderUnlock();
   const m = merged(app.stats, app.did);
@@ -411,7 +435,8 @@ function render() {
     <section class="card" id="me">
       <div id="stage" class="stage"><div class="bg">${roomBg(m, st)}</div><div id="slot"></div><div class="ops mono" id="ops" aria-hidden="true"></div></div>
       ${waitHtml()}
-      <div class="who"><span class="name">HAKO <span class="mono">${esc(app.did.slice(-8))}</span></span><span class="chip state"><span class="dot" style="background:${st.grave ? "var(--dim)" : st.hunger >= 60 ? "var(--good)" : st.hunger >= 30 ? "var(--mid)" : "var(--bad)"}"></span>${stateWord(st)}</span></div>
+      <div class="who"><span class="name">${nameHtml()}<button type="button" class="rename" id="rename" aria-expanded="${app.naming ? "true" : "false"}" title="${L("HAKO \u306B\u540D\u524D\u3092\u3064\u3051\u308B", "Name your HAKO")}" aria-label="${L("HAKO \u306B\u540D\u524D\u3092\u3064\u3051\u308B", "Name your HAKO")}">\u270E</button></span><span class="chip state"><span class="dot" style="background:${st.grave ? "var(--dim)" : st.hunger >= 60 ? "var(--good)" : st.hunger >= 30 ? "var(--mid)" : "var(--bad)"}"></span>${stateWord(st)}</span></div>
+      ${app.naming ? nameForm() : ""}
       ${st.grave ? "" : `<div class="meters">${meter(L("\u304A\u306A\u304B", "Tummy"), st.hunger, app.box.hunger_max)}${meter(L("\u3054\u304D\u3052\u3093", "Mood"), st.mood, app.box.mood_max)}</div>`}
       <div class="chips mono">
         <span class="chip">${L(`\u9023\u7D9A ${st.streak} \u65E5`, `Streak ${st.streak}d`)}</span>
@@ -422,6 +447,7 @@ function render() {
       ${!st.grave && st.stage !== "hako" && app.box.grow_hours ? `<p class="hint">${L(`${Math.round(app.box.grow_hours / 24)} \u65E5\u80B2\u3066\u308B\u3068\u2026\uFF1F`, `Raise it for ${Math.round(app.box.grow_hours / 24)} days and\u2026?`)}</p>` : ""}
       ${graveNote}
       <div class="actions main">${acts}</div>
+      ${sitHtml(st, m)}
       <p id="why" class="why${app.why && app.whyBad ? " bad" : ""}">${esc(app.why ?? "")}</p>
       <div id="said"></div>
       ${roomInfo(m, st)}
@@ -433,6 +459,7 @@ function render() {
     renderSaid(m.fold);
     return;
   }
+  app.nmFocus = document.activeElement?.id === "nm";
   app.viewHtml = html;
   view.innerHTML = html;
   app.opsShown = null;
@@ -442,6 +469,8 @@ function render() {
   for (const b of document.querySelectorAll("#reborn")) b.onclick = reborn;
   const cam = $("snapshot");
   if (cam) cam.onclick = () => snapshot(app.m, app.st);
+  wireName();
+  wireSit();
   const sk = $("savekey");
   if (sk) sk.onclick = () => {
     const rec = K.loadRec();
@@ -452,6 +481,197 @@ function render() {
   };
   for (const b of document.querySelectorAll("button[data-kind]")) b.onclick = () => startDeal(b.dataset.kind);
   renderSaid(m.fold);
+}
+function nameHtml() {
+  const rec = K.loadRec(), named = rec?.did === app.did && K.cleanName(rec.name);
+  return named ? `${esc(named)} <span class="mono sub">\u2026${esc(app.did.slice(-8))}</span>` : `HAKO <span class="mono">${esc(app.did.slice(-8))}</span>`;
+}
+function nameForm() {
+  return `<form class="namef" id="namef">
+      <label>${L("\u540D\u524D", "Name")}<input id="nm" type="text" maxlength="${K.NAME_MAX}" autocomplete="off" placeholder="HAKO \u2026${esc(app.did.slice(-8))}"></label>
+      <div class="actions"><button type="submit" class="btn">${L("\u4FDD\u5B58", "Save")}</button><button type="button" class="btn sub" id="nm-cancel">${L("\u3084\u3081\u308B", "Cancel")}</button></div>
+      <p class="small">${L(
+    `${K.NAME_MAX} \u6587\u5B57\u307E\u3067\u3002\u540D\u524D\u306F\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u3068\u9375\u30D5\u30A1\u30A4\u30EB\u306B\u3060\u3051\u4FDD\u5B58\u3055\u308C\u3001\u5EAD\u3084\u307B\u304B\u306E\u4EBA\u306E\u753B\u9762\u306B\u306F\u51FA\u307E\u305B\u3093\u3002\u30B7\u30A7\u30A2\u3059\u308B\u753B\u50CF\u306B\u306F\u51FA\u307E\u3059\u3002\u7A7A\u306B\u3059\u308B\u3068\u5143\u306E\u547C\u3073\u540D\u306B\u623B\u308A\u307E\u3059\u3002\u9375\u30D5\u30A1\u30A4\u30EB\u306B\u3082\u540D\u524D\u3092\u5165\u308C\u308B\u306B\u306F\u3001\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u3082\u3046\u4E00\u5EA6\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002`,
+    `Up to ${K.NAME_MAX} characters. Saved only in this browser and your key file. It won't appear in the garden or on anyone else's screen, but it will show in images you share. Leave it empty to use the default name. To include it in your key file, save the key file again.`
+  )}</p>
+    </form>`;
+}
+function wireName() {
+  const rn = $("rename");
+  if (rn) rn.onclick = () => {
+    app.naming = !app.naming;
+    app.nameDraft = K.cleanName(K.loadRec()?.name);
+    render();
+    if (app.naming) $("nm")?.focus();
+  };
+  const f = $("namef"), nm = $("nm");
+  if (!f || !nm) return;
+  nm.value = app.nameDraft ?? "";
+  if (app.nmFocus) nm.focus();
+  nm.oninput = () => {
+    app.nameDraft = nm.value;
+  };
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const ok = K.setName(nm.value), named = K.cleanName(nm.value);
+    app.naming = false;
+    app.nameDraft = "";
+    say(!ok ? L("\u540D\u524D\u3092\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306B\u4FDD\u5B58\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F", "Couldn't save the name in this browser") : named ? L(`\u540D\u524D\u3092\u300C${named}\u300D\u306B\u3057\u307E\u3057\u305F`, `Name set to \u201C${named}\u201D`) : L("\u5143\u306E\u547C\u3073\u540D\u306B\u623B\u3057\u307E\u3057\u305F", "Back to the default name"), !ok);
+    render();
+  };
+  $("nm-cancel").onclick = () => {
+    app.naming = false;
+    app.nameDraft = "";
+    render();
+  };
+}
+const SIT_INDEX = () => `tama_sit_v1:${app.did}`;
+function loadSits() {
+  let ix = null;
+  try {
+    ix = JSON.parse(localStorage.getItem(SIT_INDEX()) || "null");
+  } catch {
+    ix = null;
+  }
+  return (ix?.slots ?? []).map(newSit);
+}
+const newSit = (slot) => new SitDeal({ app, slot, onEvent: (ev) => onSit(ev, slotKind(slot)) });
+const sitLive = () => app.sits.filter((d) => d.st && !d.st.done);
+const sitPlaysMax = (n) => Math.max(0, Math.min(Number(app.box.sit_plays_max ?? 0), Math.floor(Number(app.box.sit_max_slots ?? 99) / n) - 1));
+function onSit(ev, kind) {
+  if (ev.type === "settled") {
+    addLocal(app.did, { t: kind === "sitplay" ? "play" : "meal", ms: ev.ms, contract: ev.contract, sit: true }, ev.delta);
+    if (kind === "sit" && ev.lines?.[0]) {
+      app.lastSay = ev.lines[0];
+      app.lastSayMenu = false;
+    }
+    logOp(`settled \xB7 ${kind} \xB7 ${short(ev.contract)} \xB7 ${ev.delta} PAPER`);
+  } else if (ev.type === "note" && app.sitBooking) {
+    app.why = ev.text;
+    app.whyBad = false;
+    app.whyAt = null;
+  }
+}
+async function tickSits() {
+  for (const d of app.sits) {
+    await d.tick().catch(() => {
+    });
+    if (d.st?.locked && d.st.contract && !d.coverNoted) {
+      const until = Number(d.st.offer.claimByMs), from = Math.max(Date.now(), d.at() - Number(app.box.sit_cover_hours) * HOUR);
+      addLocal(app.did, { t: "sit", ms: Math.min(from, until - 1), until, contract: d.st.contract });
+      d.coverNoted = true;
+    }
+  }
+  if (app.sitBooking && !sitPending()) {
+    app.sitBooking = false;
+    const mine = app.sits.filter((d) => app.sitNew?.has(d.slot) && (d.st?.locked || d.st?.stage === "settled"));
+    const ok = mine.filter((d) => d.kind === "sit").length, okp = mine.length - ok;
+    app.why = mine.length ? L(`\u30B7\u30C3\u30BF\u30FC\u306B\u304A\u9858\u3044\u3057\u307E\u3057\u305F\uFF08\u3054\u306F\u3093 ${ok} \u56DE${okp ? `\u30FB\u3042\u305D\u3076 ${okp} \u56DE` : ""}\uFF09\u3002\u9589\u3058\u3066\u3082\u5927\u4E08\u592B\u3067\u3059`, `Sitter booked (${ok} meal${ok === 1 ? "" : "s"}${okp ? `, ${okp} play${okp === 1 ? "" : "s"}` : ""}). You can close the page.`) : L("\u304A\u9858\u3044\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002PAPER \u306F\u4F7F\u308F\u308C\u3066\u3044\u307E\u305B\u3093", "Couldn't book the sitter. No PAPER was spent.");
+    app.whyBad = !mine.length;
+    app.whyAt = Date.now();
+  }
+}
+const sitPending = () => app.sits.some((d) => d.st && !d.st.done && !d.st.locked && !["refunded", "settled"].includes(d.st.stage));
+const whenShort = (ms) => new Date(ms).toLocaleString(getLang() === "ja" ? "ja-JP" : "en-US", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function sitStart() {
+  const meals = app.sits.filter((d) => d.kind === "sit" && d.st && !["refunded", "ng", "offer_failed"].includes(d.st.stage)).map((d) => d.at()).filter((t) => t > Date.now());
+  return meals.length ? { t0: Math.max(...meals), first: Number(app.box.sit_every_hours), ext: true } : { t0: Date.now(), first: Number(app.box.sit_first_hours ?? app.box.sit_every_hours), ext: false };
+}
+const sitFits = (n, p, s) => sitSchedule(app.box, s.t0, n, p, s.first).every((x) => !sitWhy(app.box, { job: { context: JSON.stringify({ at: x.at }) }, claimByMs: x.claimByMs, refundAfterMs: x.refundAfterMs }, Date.now()));
+function sitHtml(st, m) {
+  if (!app.box?.sit_price) return "";
+  const live2 = sitLive();
+  if (!app.box.sit_enabled && !live2.length && !(st.sitUntil > Date.now())) return "";
+  if (live2.length && sitPending()) return `<div class="sit"><p class="small">${L("\u304A\u9858\u3044\u3057\u3066\u3044\u307E\u3059\u2026\uFF081\u301C2 \u5206\u3002\u3053\u306E\u307E\u307E\u958B\u3044\u3066\u304A\u3044\u3066\u304F\u3060\u3055\u3044\uFF09", "Booking the sitter\u2026 (1\u20132 minutes. Please keep this open.)")}</p></div>`;
+  const s = sitStart();
+  let head = "";
+  if (s.ext || st.sitUntil && st.sitUntil > Date.now()) {
+    const ats = app.sits.filter((d) => d.st && !["refunded", "ng", "offer_failed"].includes(d.st.stage)).map((d) => d.at()).filter((t) => t > 0).sort((a, b) => a - b);
+    const last = ats.length ? ats[ats.length - 1] : null;
+    const done = (d) => d.st?.stage === "settled", cnt = (k, f = () => true) => app.sits.filter((d) => d.kind === k && d.st && !["refunded", "ng", "offer_failed"].includes(d.st.stage) && f(d)).length;
+    const nm = cnt("sit"), np = cnt("sitplay"), cm = cnt("sit", done), cp = cnt("sitplay", done);
+    head = `<p class="small"><b>${L("\u304A\u308B\u3059\u3070\u3093\u4E2D", "Sitter on duty")}</b>${last ? L(`\uFF08${whenShort(last)} \u307E\u3067\uFF09`, ` (until ${whenShort(last)})`) : ""}\u3000` + L(`\u3054\u306F\u3093 ${cm}/${nm}${np ? `\u30FB\u3042\u305D\u3076 ${cp}/${np}` : ""}`, `meals ${cm}/${nm}${np ? `, plays ${cp}/${np}` : ""}`) + `</p>`;
+    const soon = s.ext && s.t0 - Date.now() < Number(app.box.sit_every_hours) * HOUR;
+    if (!app.box.sit_enabled || st.grave || !soon) return `<div class="sit">${head}</div>`;
+  }
+  if (st.grave || !app.box.sit_enabled) return head ? `<div class="sit">${head}</div>` : "";
+  const btn = `<div class="actions"><button type="button" class="btn sub" id="sit-open">${s.ext ? L("\u30B7\u30C3\u30BF\u30FC\u3092\u5EF6\u9577", "Extend sitter") : L("\u30B7\u30C3\u30BF\u30FC\u306B\u304A\u9858\u3044", "Ask a sitter")}</button></div>`;
+  if (!app.sitOpen) return head ? `<div class="sit">${head}${btn}</div>` : btn;
+  const dmax = Array.from({ length: Number(app.box.sit_max_days) }, (_, i) => i + 1).filter((d) => sitFits(d, 0, s)).pop() ?? 0;
+  if (!dmax) return `<div class="sit">${head}</div>`;
+  const n = Math.min(Math.max(1, Number(app.sitDays ?? Math.min(3, dmax))), dmax);
+  const pmax = Math.max(0, ...Array.from({ length: sitPlaysMax(n) + 1 }, (_, j) => j).filter((j) => sitFits(n, j, s)));
+  const p = Math.min(Math.max(0, Number(app.sitPlays ?? Math.min(1, pmax))), pmax);
+  const price = Number(app.box.sit_price), pprice = Number(app.box.sit_play_price ?? 0), total = n * (price + p * pprice), lack = m.balance < total;
+  const opts = Array.from({ length: dmax }, (_, i) => `<option value="${i + 1}"${i + 1 === n ? " selected" : ""}>${L(`${i + 1} \u65E5`, `${i + 1} day${i ? "s" : ""}`)}</option>`).join("");
+  const popts = Array.from({ length: pmax + 1 }, (_, i) => `<option value="${i}"${i === p ? " selected" : ""}>${L(i ? `${i} \u56DE` : "\u3042\u305D\u3070\u306A\u3044", ["None", "Once", "Twice"][i] ?? `${i} times`)}</option>`).join("");
+  return `<div class="sit">${head}<form class="sitf" id="sitf">
+      <label>${s.ext ? L("\u5EF6\u9577\u3059\u308B\u65E5\u6570", "Extra days") : L("\u7559\u5B88\u306B\u3059\u308B\u65E5\u6570", "Days away")}<select id="sit-days">${opts}</select></label>
+      ${pmax ? `<label>${L("1 \u65E5\u306B\u3042\u305D\u3076\u56DE\u6570", "Plays per day")}<select id="sit-plays">${popts}</select></label>` : ""}
+      ${lack ? `<p class="why bad">${L("PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093", "Not enough PAPER")}</p>` : ""}
+      <div class="actions"><button type="submit" class="btn"${lack ? " disabled" : ""}>${L("\u304A\u9858\u3044\u3059\u308B", "Book")} <span class="price">${fmt(total)} $PAPER</span></button><button type="button" class="btn sub" id="sit-cancel">${L("\u3084\u3081\u308B", "Cancel")}</button></div>
+    </form></div>`;
+}
+function wireSit() {
+  const o = $("sit-open");
+  if (o) o.onclick = () => {
+    app.sitOpen = true;
+    render();
+  };
+  const sel = $("sit-days");
+  if (sel) sel.onchange = () => {
+    app.sitDays = Number(sel.value);
+    render();
+  };
+  const ps = $("sit-plays");
+  if (ps) ps.onchange = () => {
+    app.sitPlays = Number(ps.value);
+    render();
+  };
+  const c = $("sit-cancel");
+  if (c) c.onclick = () => {
+    app.sitOpen = false;
+    render();
+  };
+  const f = $("sitf");
+  if (f) f.onsubmit = (ev) => {
+    ev.preventDefault();
+    bookSit(Number($("sit-days").value), Number($("sit-plays")?.value ?? 0));
+  };
+}
+async function bookSit(n, p = 0) {
+  if (sitPending() || app.sitBooking) return;
+  const st = app.st, m = app.m;
+  if (!st || st.grave) return;
+  const s = sitStart();
+  p = Math.min(Math.max(0, p), sitPlaysMax(n));
+  if (!sitFits(n, p, s)) return say(L("\u305D\u306E\u65E5\u6570\u3067\u306F\u983C\u3081\u307E\u305B\u3093", "That many days can't be booked"));
+  if (m.balance < n * (Number(app.box.sit_price) + p * Number(app.box.sit_play_price ?? 0))) return say(L("PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093", "Not enough PAPER"));
+  const plan = sitSchedule(app.box, s.t0, n, p, s.first);
+  plan.sort((a, b) => (a.j > 0) - (b.j > 0) || a.at - b.at);
+  const slots = plan.map((x) => x.j ? `${s.t0}-${x.k}-p${x.j}` : `${s.t0}-${x.k}`);
+  let ix = null;
+  try {
+    ix = JSON.parse(localStorage.getItem(SIT_INDEX()) || "null");
+  } catch {
+    ix = null;
+  }
+  const keep = s.ext ? ix?.slots ?? [] : [];
+  try {
+    localStorage.setItem(SIT_INDEX(), JSON.stringify({ t0: s.t0, n, p, slots: [...keep, ...slots] }));
+  } catch {
+  }
+  const fresh = slots.map(newSit);
+  app.sits = s.ext ? [...app.sits, ...fresh] : fresh;
+  app.sitNew = new Set(slots);
+  app.sitOpen = false;
+  app.sitBooking = true;
+  say(L("\u304A\u9858\u3044\u3057\u3066\u3044\u307E\u3059\u2026\uFF081\u301C2 \u5206\u3002\u3053\u306E\u307E\u307E\u958B\u3044\u3066\u304A\u3044\u3066\u304F\u3060\u3055\u3044\uFF09", "Booking the sitter\u2026 (1\u20132 minutes. Please keep this open.)"), false);
+  for (let i = 0; i < plan.length; i++) {
+    const r = await fresh[i].book({ st, plan: plan[i], t0: s.t0 });
+    if (!r.ok) logOp(`${plan[i].kind} \xB7 ${plan[i].k}${plan[i].j ? `-p${plan[i].j}` : ""} \xB7 ${r.why}`);
+  }
+  render();
 }
 function actionsHtml(st, m) {
   if (st.grave) return `<button class="btn" id="reborn" style="--c:var(--accent)"><span class="dot" style="background:var(--accent)"></span>${L("\u751F\u307E\u308C\u5909\u308F\u308B", "Be reborn")} <span class="price">${fmt(Math.min(Number(app.box.reborn_price ?? 0), Math.max(0, m.balance)))} $PAPER</span></button>`;
@@ -551,7 +771,7 @@ async function snapshot(m, st) {
   const n = lifetime(m.events, app.box, localDay);
   const art = st.grave ? null : app.lastArticle ?? (m.fold?.outs ?? []).slice(-1)[0] ?? null;
   const said = st.grave ? "Here lies a happy little HAKO. It will be back." : lastSay(m.fold);
-  const title = `HAKO \u2026${app.did.slice(-8)}`;
+  const title = K.nameOf(K.loadRec(), app.did);
   const stage = $("stage");
   if (stage) {
     stage.classList.remove("flash");
@@ -613,7 +833,7 @@ async function snapshot(m, st) {
 }
 function playsToday(m) {
   const today = localDay(Date.now(), app.box);
-  const done = m.events.filter((e) => e.t === "play" && localDay(e.ms, app.box) === today).length;
+  const done = m.events.filter((e) => e.t === "play" && !e.sit && localDay(e.ms, app.box) === today).length;
   const live2 = app.deals.play?.busy() ? 1 : 0;
   return done + live2;
 }
@@ -632,21 +852,35 @@ function actionBlock(kind, st, m) {
 function renderSaid(fold) {
   const el = $("said");
   if (!el) return;
-  const meals = (fold?.meals ?? []).slice(-3).reverse();
-  if (app.lastSay && !meals.some((x) => x.line === app.lastSay)) meals.unshift({ line: app.lastSay });
+  const meals = (fold?.meals ?? []).filter((x) => x.menu).reverse();
+  if (app.lastSay && app.lastSayMenu && !meals.some((x) => x.line === app.lastSay)) meals.unshift({ line: app.lastSay });
+  meals.splice(10);
   let outs = (fold?.outs ?? []).slice(-1);
   if (app.lastArticle && !(fold?.outs ?? []).some((o) => o.contract === app.lastArticle.contract)) outs = [app.lastArticle];
   const h = [
     ...outs.map((o) => `<article class="article">${o.lines.map((l, i) => i === 0 ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join("")}</article>`),
-    ...meals.length ? [`<p class="label" style="margin-top:12px">${L("\u3072\u3068\u3053\u3068", "What it said")}</p>`] : [],
-    ...meals.map((x) => `<p class="bubble">${esc(x.line)}</p>`)
+    ...meals.length ? [`<p class="label" style="margin-top:12px">${L("\u3053\u308C\u307E\u3067\u98DF\u3079\u305F\u3054\u98EF", "Meals so far")}</p><ul class="menu">${meals.map((x) => `<li>${esc(x.line)}</li>`).join("")}</ul>`] : []
   ].join("");
   if (app.saidHtml !== h || h && !el.firstChild) {
     el.innerHTML = h;
     app.saidHtml = h;
   }
 }
+const isFull = () => app.box.max_hakos != null && Number(app.stats?.box?.hakos ?? 0) >= Number(app.box.max_hakos);
+const isClosing = () => location.hostname.endsWith("github.io");
 function renderEgg() {
+  if (!app.did && (isFull() || isClosing())) {
+    $("view").innerHTML = `
+    <section class="card" id="me">
+      <div class="stage plain short"><div class="egg">${spriteSvg(null, "egg", 5)}</div></div>
+      <p class="label" style="margin-top:14px">NEW HAKO</p>
+      ${isClosing() ? `<h2>${L("\u3053\u3053\u3067\u306F\u65B0\u3057\u3044 HAKO \u3092\u8FCE\u3048\u3066\u3044\u307E\u305B\u3093", "No new HAKOs here")}</h2>` : `<h2>${L("\u3044\u307E\u306F\u6E80\u54E1\u3067\u3059", "We're full right now")}</h2>
+      <p>${L("\u65B0\u3057\u3044 HAKO \u306F\u3001\u7A7A\u304D\u304C\u51FA\u308B\u307E\u3067\u8FCE\u3048\u3089\u308C\u307E\u305B\u3093\u3002", "New HAKOs can't be welcomed until there's room.")}</p>`}
+      <p class="small">${L("\u9375\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308B\u3068\u304D\u306F", "Have a key file?")} <label class="link">${L("\u30D5\u30A1\u30A4\u30EB\u304B\u3089\u8AAD\u307F\u8FBC\u3080", "Load it from a file")}<input id="file" type="file" accept="application/json" hidden></label></p>
+    </section>`;
+    $("file").onchange = importKey;
+    return;
+  }
   $("view").innerHTML = `
     <section class="card" id="me">
       <div class="stage plain short"><div class="egg">${spriteSvg(null, "egg", 5)}</div></div>
@@ -699,7 +933,7 @@ function renderUnlock() {
   $("view").innerHTML = `
     <section class="card" id="me">
       <div class="stage plain">${app.did ? `<div class="hako">${sleeping()}</div>` : ""}</div>
-      <p>${L(`HAKO \u2026${esc(app.did.slice(-8))} \u304C\u7720\u3063\u3066\u3044\u307E\u3059\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u5165\u308C\u308B\u3068\u8D77\u304D\u307E\u3059\u3002`, `HAKO \u2026${esc(app.did.slice(-8))} is asleep. Enter your passphrase to wake it.`)}</p>
+      <p>${L(`${esc(K.nameOf(K.loadRec(), app.did))} \u304C\u7720\u3063\u3066\u3044\u307E\u3059\u3002\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u5165\u308C\u308B\u3068\u8D77\u304D\u307E\u3059\u3002`, `${esc(K.nameOf(K.loadRec(), app.did))} is asleep. Enter your passphrase to wake it.`)}</p>
       <form class="keyf" id="kf" method="post" action="#">
       <input class="vh" name="username" type="text" autocomplete="username" tabindex="-1" aria-hidden="true" value="${esc(K.loginName(app.did))}" readonly>
       <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA", "Passphrase")}<span class="pw"><input id="p1" name="password" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="p1"></button></span></label>
@@ -727,8 +961,10 @@ const say = (s, bad = true) => {
 };
 async function register() {
   const p1 = $("p1").value, p2 = $("p2").value;
-  if (p1.length < 8) return say(L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u306F 8 \u6587\u5B57\u4EE5\u4E0A\u306B\u3057\u3066\u304F\u3060\u3055\u3044", "Use a passphrase of 8 characters or more"));
+  if (p1.length < 12) return say(L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u306F 12 \u6587\u5B57\u4EE5\u4E0A\u306B\u3057\u3066\u304F\u3060\u3055\u3044", "Use a passphrase of 12 characters or more"));
   if (p1 !== p2) return say(L("2 \u3064\u306E\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u304C\u9055\u3044\u307E\u3059", "The two passphrases don't match"));
+  if (isClosing()) return say(L("\u3053\u3053\u3067\u306F\u65B0\u3057\u3044 HAKO \u3092\u8FCE\u3048\u3066\u3044\u307E\u305B\u3093", "No new HAKOs here"));
+  if (isFull()) return say(L("\u3044\u307E\u306F\u6E80\u54E1\u3067\u3059", "We're full right now"));
   if (!await K.supported()) return say(L("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306F Ed25519 \u306E\u9375\u3092\u4F5C\u308C\u307E\u305B\u3093\u3002\u65B0\u3057\u3044\u30D6\u30E9\u30A6\u30B6\u3067\u958B\u3044\u3066\u304F\u3060\u3055\u3044", "This browser can't make an Ed25519 key. Please open it in a newer browser."));
   say(L("\u9375\u3092\u4F5C\u3063\u3066\u3044\u307E\u3059\u2026", "Making your key\u2026"), false);
   const { priv, did, rec } = await K.makeKey(p1);
@@ -756,6 +992,8 @@ async function importKey(ev) {
   try {
     const j = JSON.parse(await ev.target.files[0].text());
     if (!K.isKeyFile(j)) return say(L("\u9375\u30D5\u30A1\u30A4\u30EB\u3067\u306F\u3042\u308A\u307E\u305B\u3093", "That is not a key file"));
+    const cur = K.loadRec();
+    if (cur && cur.did !== j.did && !confirm(L(`\u4ECA\u306E ${K.nameOf(cur, cur.did)} \u306E\u9375\u3092\u3001\u8AAD\u307F\u8FBC\u3093\u3060\u9375\u3067\u7F6E\u304D\u63DB\u3048\u307E\u3059\u3002\u4ECA\u306E\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u3044\u306A\u3044\u3068\u3001\u4ECA\u306E HAKO \u306B\u306F\u623B\u308C\u307E\u305B\u3093\u3002\u7F6E\u304D\u63DB\u3048\u307E\u3059\u304B\uFF1F`, `This replaces the key for ${K.nameOf(cur, cur.did)} with the one you loaded. If you haven't saved the current key file, you can't get back to this HAKO. Replace it?`))) return;
     K.saveRec(j);
     app.did = j.did;
     render();
@@ -801,7 +1039,7 @@ async function startDeal(kind) {
 function onDeal(kind, ev) {
   if (ev.type === "settled") {
     if (document.body.dataset.tab !== "me") for (const a of document.querySelectorAll('[data-tab-to="me"]')) a.classList.add("ping");
-    addLocal(app.did, { t: kind, ms: ev.ms, contract: ev.contract }, ev.delta);
+    addLocal(app.did, { t: kind, ms: ev.ms, contract: ev.contract, ...kind === "play" ? { payout: ev.delta + Number(app.box.play_stake) } : {} }, ev.delta);
     if (kind === "play") app.happyUntil = Date.now() + 8e3;
     if (kind === "out" && ev.lines) {
       let facts = null;
@@ -816,6 +1054,7 @@ function onDeal(kind, ev) {
     app.whyAt = null;
     if (kind === "meal" && ev.say) {
       app.lastSay = ev.say;
+      app.lastSayMenu = app.box.meal_menu_from != null && Date.now() >= Number(app.box.meal_menu_from);
       app.sayFresh = true;
       app.why = "";
     } else if (ev.say) app.why = ev.say;
@@ -831,9 +1070,16 @@ async function boot() {
   app.why = "";
   app.viewHtml = null;
   for (const [k] of dealKinds) app.deals[k] = new Deal({ kind: k, app, onEvent: (ev) => onDeal(k, ev) });
+  app.sits = loadSits();
   render();
+  loadStats().then((s) => {
+    app.stats = s;
+    render();
+  }).catch(() => {
+  });
   const tick = async () => {
     for (const x of Object.values(app.deals)) await x.tick().catch((e) => x.note?.(`error ${e.message}`));
+    await tickSits();
     if (!document.hidden) render();
   };
   setInterval(tick, 5e3);
@@ -845,10 +1091,24 @@ async function boot() {
   }, 5 * 6e4);
   tick();
 }
+const didFile = (did) => `${String(did).split(":").pop()}.json`;
 async function loadStats() {
-  const r = await fetch(`latest.json?t=${Date.now()}`, { cache: "no-store" });
-  if (!r.ok) throw new Error(`latest.json ${r.status}`);
-  return await r.json();
+  const get = (u) => fetch(u, { cache: "no-cache" });
+  const r = await get("garden.json");
+  if (!r.ok) {
+    const old = await get("latest.json");
+    if (!old.ok) throw new Error(`garden.json ${r.status}`);
+    return await old.json();
+  }
+  const g = await r.json(), did = app.did ?? K.loadRec()?.did, out = { box: g.box, feed: g.feed, counts: g.counts, did: {} };
+  if (did) {
+    try {
+      const m = await get(`d/${didFile(did)}`);
+      if (m.ok) Object.assign(out.did, (await m.json()).did ?? {});
+    } catch {
+    }
+  }
+  return out;
 }
 async function start() {
   try {
@@ -873,12 +1133,10 @@ async function start() {
     app.moods = null;
   }
   setVenue(app.box.venue);
-  K.serveTabs();
   const rec = K.loadRec();
   app.did = rec?.did ?? null;
   if (app.did) {
     app.priv = await K.recallTab(app.did);
-    if (!app.priv && await K.askTabs(app.did)) app.priv = await K.recallTab(app.did);
     if (app.priv) {
       app.signer = watched(makeSigner(app.did, app.priv));
       return boot();
