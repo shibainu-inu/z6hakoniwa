@@ -191,7 +191,11 @@ function splitLines(output) {
   while (lines.length && lines[lines.length - 1] === "") lines.pop();
   return lines;
 }
-function checkLines(lines, { n, maxChars = 140, instruction = "", fragmentWords = 5, needs = [], digitsOk = true }) {
+const ALLOW_RE = /^[A-Za-z0-9 .,!?'"\u2018\u2019\u201C\u201D\u2013\u2014:;()&-]*$/;
+const DOT_RE = /[A-Za-z0-9]\.[A-Za-z0-9]|\.\s*(com|net|org|io|ai|xyz|ly|me|app|dev|jp|co|gg|link|site|top|info|biz|ru|cn|tk|click|online|shop|to|so|sh|cc|fun|live|lol|fi|finance|chat|bot)\b|\bdot\s+(com|net|org|io|ai|xyz|app|chat|finance)\b/i;
+const PHONE_RE = /(?:\d[\s\-().]*){7,}/;
+const lineStrict = (box, ms) => box.line_allow_from != null && Number(ms) >= Number(box.line_allow_from);
+function checkLines(lines, { n, maxChars = 140, instruction = "", fragmentWords = 5, needs = [], digitsOk = true, strict = false }) {
   if (!Array.isArray(lines)) return { ok: false, why: "not lines" };
   if (lines.length !== n) return { ok: false, why: `${lines.length} lines, want ${n}` };
   const seen = new Set();
@@ -202,6 +206,12 @@ function checkLines(lines, { n, maxChars = 140, instruction = "", fragmentWords 
     if (cpLen(l) > maxChars) return { ok: false, why: `${k + 1}:over ${maxChars}` };
     if (DID_RE.test(l)) return { ok: false, why: `${k + 1}:did` };
     if (URL_RE.test(l)) return { ok: false, why: `${k + 1}:url` };
+    if (strict) {
+      const x = l.replace(/\{[A-Z]\}/g, "");
+      if (!ALLOW_RE.test(x)) return { ok: false, why: `${k + 1}:chars` };
+      if (DOT_RE.test(x)) return { ok: false, why: `${k + 1}:url` };
+      if (PHONE_RE.test(x)) return { ok: false, why: `${k + 1}:phone` };
+    }
     if (seen.has(l)) return { ok: false, why: `${k + 1}:duplicate` };
     seen.add(l);
     const lw = words(l);
@@ -318,6 +328,7 @@ export {
   jobId,
   jobKind,
   lifeState,
+  lineStrict,
   localDay,
   mealPrompt,
   mergeCovers,

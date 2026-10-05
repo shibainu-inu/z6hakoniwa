@@ -2,7 +2,7 @@ import * as tclk from "./hako_tclk.js";
 import { notes, readTail } from "./tama_net.js";
 import { pubFromDid } from "./hako_dot.js";
 import { L } from "./tama_i18n.js";
-import { jobId, tamaLine, parseTama, acceptKey, checkLines, mealPrompt, outPrompt, playPayoutAt, localDay, rewardOf, boxAt } from "./tama_core.js";
+import { jobId, tamaLine, parseTama, acceptKey, checkLines, lineStrict, mealPrompt, outPrompt, playPayoutAt, localDay, rewardOf, boxAt } from "./tama_core.js";
 const dealKinds = [["meal", "\u3054\u306F\u3093"], ["out", "\u304A\u3067\u304B\u3051"], ["play", "\u3042\u305D\u3076"]];
 const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
 async function acceptSigOk(did, key, text, sig) {
@@ -149,7 +149,7 @@ class Deal {
         this.note(e.status === 429 ? L("\u4F1A\u5834\u306E\u90E8\u5C4B\u306E\u6570\u304C\u4ECA\u65E5\u306E\u4E0A\u9650\u306B\u8FD1\u3044\u306E\u3067\u3001\u5C11\u3057\u5F85\u3063\u3066\u304B\u3089\u3082\u3046\u4E00\u5EA6\u958B\u304D\u307E\u3059", "The venue is near today's room limit, so it will try again in a moment.") : L(`\u90E8\u5C4B\u3092\u958B\u3051\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09\u3002\u3082\u3046\u4E00\u5EA6\u8A66\u3057\u307E\u3059`, `Couldn't open a room (${e.message}). Trying again.`));
         return;
       }
-      this.set("locked", { lock, locked: true });
+      this.set("locked", { lock, locked: true, lockedAt: Date.now() });
       await this.app.signer.post(room, tamaLine({ t: "terms", offer: o, accept: a.frame }));
       await this.app.signer.post(b.board, tamaLine({ t: "deal", kind: this.kind, contract, n: rand() }));
       this.set("waiting");
@@ -178,7 +178,7 @@ class Deal {
         this.note(e.status === 429 ? L("\u4F1A\u5834\u306E\u90E8\u5C4B\u306E\u6570\u304C\u4ECA\u65E5\u306E\u4E0A\u9650\u306B\u8FD1\u3044\u306E\u3067\u3001\u5C11\u3057\u5F85\u3063\u3066\u304B\u3089\u3082\u3046\u4E00\u5EA6\u958B\u304D\u307E\u3059", "The venue is near today's room limit, so it will try again in a moment.") : L(`\u90E8\u5C4B\u3092\u958B\u3051\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09\u3002\u3082\u3046\u4E00\u5EA6\u8A66\u3057\u307E\u3059`, `Couldn't open a room (${e.message}). Trying again.`));
         return;
       }
-      this.set("locked", { locked: true });
+      this.set("locked", { locked: true, lockedAt: st.lockedAt ?? Date.now() });
       return;
     }
     if (st.stage === "locked") {
@@ -220,9 +220,9 @@ class Deal {
   async finish(lines, ms, secret) {
     const b = this.box, st = this.st;
     let ok = true, say = "";
-    if (this.kind === "sitplay") ok = checkLines(lines, { n: Number(b.meal_lines), maxChars: b.line_max_chars, instruction: b.sit_play_instruction, fragmentWords: b.fragment_words }).ok;
-    if (this.kind === "meal" || this.kind === "sit") ok = checkLines(lines, { n: Number(b.meal_lines), maxChars: b.line_max_chars, instruction: b.meal_instruction, fragmentWords: b.fragment_words }).ok;
-    if (this.kind === "out") ok = checkLines(lines, { n: Number(b.out_lines), maxChars: b.line_max_chars, instruction: b.out_instruction, fragmentWords: b.fragment_words, needs: [[3, "{V}"], [3, "{B}"]], digitsOk: false }).ok;
+    if (this.kind === "sitplay") ok = checkLines(lines, { n: Number(b.meal_lines), maxChars: b.line_max_chars, instruction: b.sit_play_instruction, fragmentWords: b.fragment_words, strict: lineStrict(b, this.st?.lockedAt ?? Date.now()) }).ok;
+    if (this.kind === "meal" || this.kind === "sit") ok = checkLines(lines, { n: Number(b.meal_lines), maxChars: b.line_max_chars, instruction: b.meal_instruction, fragmentWords: b.fragment_words, strict: lineStrict(b, this.st?.lockedAt ?? Date.now()) }).ok;
+    if (this.kind === "out") ok = checkLines(lines, { n: Number(b.out_lines), maxChars: b.line_max_chars, instruction: b.out_instruction, fragmentWords: b.fragment_words, needs: [[3, "{V}"], [3, "{B}"]], digitsOk: false, strict: lineStrict(b, this.st?.lockedAt ?? Date.now()) }).ok;
     if (!ok) {
       this.set("ng", { done: true, locked: false, lines });
       this.note(L("\u5C4A\u3044\u305F\u3082\u306E\u304C\u6C7A\u307E\u308A\u306B\u5408\u308F\u306A\u304B\u3063\u305F\u306E\u3067\u3001\u6210\u7ACB\u3057\u307E\u305B\u3093\u3067\u3057\u305F\u3002PAPER \u306F\u52D5\u3044\u3066\u3044\u307E\u305B\u3093", "What arrived didn't meet the rules, so the deal didn't settle. No PAPER moved."));
