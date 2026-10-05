@@ -21,14 +21,15 @@ function ago(ms, now = Date.now()) {
   if (s < 86400) return L(`${Math.floor(s / 3600)}\u6642\u9593\u524D`, `${Math.floor(s / 3600)}h ago`);
   return L(`${Math.floor(s / 86400)}\u65E5\u524D`, `${Math.floor(s / 86400)}d ago`);
 }
+const playEv = (stake, payout) => payout == null ? { what: L("\u3042\u305D\u3093\u3060", "played") } : { what: L(`${stake} \u3092\u8CED\u3051\u3066 ${payout} \u623B\u3063\u305F`, `bet ${stake}, got ${payout} back`), delta: payout - stake };
 function gardenEvents(stats) {
   if (stats?.feed) return stats.feed.map((r) => ({
     did: r.did,
     ms: r.ms,
     kind: r.kind,
     // 庭用の garden.json（tama_site.split_ledger）
-    what: r.kind === "join" ? L("\u751F\u307E\u308C\u305F", "was born") : r.kind === "reborn" ? L("\u751F\u307E\u308C\u5909\u308F\u3063\u305F", "was reborn") : r.kind === "play" ? L(`${r.stake} \u3092\u8CED\u3051\u3066 ${r.payout} \u623B\u3063\u305F`, `bet ${r.stake}, got ${r.payout} back`) : r.line ?? "",
-    ...r.kind === "play" ? { delta: r.payout - r.stake } : {}
+    what: r.kind === "join" ? L("\u751F\u307E\u308C\u305F", "was born") : r.kind === "reborn" ? L("\u751F\u307E\u308C\u5909\u308F\u3063\u305F", "was reborn") : r.line ?? "",
+    ...r.kind === "play" ? playEv(r.stake, r.payout) : {}
   }));
   const out = [];
   for (const [did, d] of Object.entries(stats?.did ?? {})) {
@@ -39,7 +40,7 @@ function gardenEvents(stats) {
     }
     for (const x of d.meals ?? []) out.push({ did, ms: x.ms, kind: "meal", what: x.line });
     for (const x of d.outs ?? []) out.push({ did, ms: x.ms, kind: "out", what: x.lines?.[0] ?? "" });
-    for (const x of d.plays ?? []) out.push({ did, ms: x.ms, kind: "play", what: L(`${x.stake} \u3092\u8CED\u3051\u3066 ${x.payout} \u623B\u3063\u305F`, `bet ${x.stake}, got ${x.payout} back`), delta: x.payout - x.stake });
+    for (const x of d.plays ?? []) out.push({ did, ms: x.ms, kind: "play", ...playEv(x.stake, x.payout) });
   }
   return out.sort((a, b) => b.ms - a.ms);
 }
@@ -60,7 +61,7 @@ function renderGarden(stats, moods, box, F = null) {
   const known = ev.filter((e) => KIND[e.kind]);
   const items = known.slice(0, 14).map((e) => {
     const [label] = KIND[e.kind];
-    const tail = e.kind === "play" ? `<span class="${e.delta >= 0 ? "up" : "down"}">${e.delta >= 0 ? "+" : ""}${e.delta}</span>` : `<span class="dim">${ago(e.ms, now)}</span>`;
+    const tail = e.kind === "play" && e.delta != null ? `<span class="${e.delta >= 0 ? "up" : "down"}">${e.delta >= 0 ? "+" : ""}${e.delta}</span>` : `<span class="dim">${ago(e.ms, now)}</span>`;
     return `<span class="item">${avatar(e.did, 2)}<span class="mono">${esc(short(e.did))}</span>${label} ${tail}</span>`;
   });
   if (tw) items.push(`<span class="item"><span class="mono">${town()}</span>${esc(moodLabel(tw))} <b class="mono">${esc(tw.value)}</b><span class="dim mono">${L(`\uFF08\u666E\u6BB5 ${esc(tw.base)}\uFF09`, `(usually ${esc(tw.base)})`)}</span></span>`);

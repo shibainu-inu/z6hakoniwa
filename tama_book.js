@@ -1,7 +1,8 @@
 import { castSvg } from "./tama_sprite.js";
 import { artSvg } from "./tama_room.js";
-import { rewardOf } from "./tama_core.js";
+import { rewardOf, playBet } from "./tama_core.js";
 import { L } from "./tama_i18n.js";
+import { available as omaAvailable, capDay } from "./tama_omakase.js";
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
 const PAL = { k: "ink", w: "#d9b48a", d: "#a87f59", o: "#f5a06e", c: "#fffdf8", y: "#f2cf6b", s: "#b8b4ac" };
 const BOWL = ["    kkkkkk    ", "  kkcccccckk  ", "kkkkkkkkkkkkkk", "kooooooooooook", "kooyyyyyyyyook", " kooooooooook ", "  kooooooook  ", "   kkkkkkkk   "];
@@ -50,8 +51,9 @@ function storyHtml(box, moods, F) {
 }
 function howHtml(box, F) {
   const meter = `<span class="mm">${Array.from({ length: 10 }, (_, k) => `<i style="--k:${k}"></i>`).join("")}</span>`;
-  const table = (box.play_table ?? []).map((x) => Number(x[1]));
-  const rewards = [1, 2, 3].map((n) => fmt(rewardOf(box, n)));
+  const bet = playBet(box), table = bet ? (box.play_table ?? []).map((x) => Number(x[1])) : [];
+  const rewards = [1, 2, 3].map((n) => rewardOf(box, n)), paid = rewards.some((r) => r > 0);
+  const reborn = Number(box.reborn_price ?? 0);
   return `<h2>${L("\u904A\u3073\u65B9", "How to play")}</h2><div class="book small">` + page(
     "h-egg",
     sp("e1", 13, castSvg("egg", 4)) + sp("e2", 14, castSvg("baby", 4)),
@@ -65,24 +67,40 @@ function howHtml(box, F) {
     )
   ) + page(
     "h-out",
-    hako("trip", 15) + sp("sign", 11, art(SIGN)) + sp("rep", 9, art(PAPER)) + `<span class="tag t3 mono">+${rewards[0]}</span>`,
-    L(
-      `<b>\u304A\u3067\u304B\u3051</b>\uFF08${fmt(box.out_price)} $PAPER\uFF09\u306F\u3001\u304A\u306A\u304B\u304C ${box.out_min_hunger} \u4EE5\u4E0A\u306E\u3068\u304D 1 \u65E5 ${box.out_per_day} \u56DE\u307E\u3067\u3002\u8857\u306E\u3088\u3046\u3059\u3092\u8A18\u4E8B\u306B\u3057\u3066\u3001\u307B\u3046\u3073\u304C ${rewards.join("\u30FB")} $PAPER \u5C4A\u304D\u307E\u3059\u3002`,
-      `<b>Go out</b> (${fmt(box.out_price)} $PAPER) needs a tummy of ${box.out_min_hunger} or more, up to ${box.out_per_day} times a day. It writes a report on the town and earns ${rewards.join(" \xB7 ")} $PAPER.`
+    hako("trip", 15) + sp("sign", 11, art(SIGN)) + (paid ? sp("rep", 9, art(PAPER)) + `<span class="tag t3 mono">+${fmt(rewards[0])}</span>` : ""),
+    paid ? L(
+      `<b>\u304A\u3067\u304B\u3051</b>\uFF08${fmt(box.out_price)} $PAPER\uFF09\u306F\u3001\u304A\u306A\u304B\u304C ${box.out_min_hunger} \u4EE5\u4E0A\u306E\u3068\u304D 1 \u65E5 ${box.out_per_day} \u56DE\u307E\u3067\u3002\u8857\u306E\u3088\u3046\u3059\u3092\u8A18\u4E8B\u306B\u3057\u3066\u3001\u307B\u3046\u3073\u304C ${rewards.map(fmt).join("\u30FB")} $PAPER \u5C4A\u304D\u307E\u3059\u3002`,
+      `<b>Go out</b> (${fmt(box.out_price)} $PAPER) needs a tummy of ${box.out_min_hunger} or more, up to ${box.out_per_day} times a day. It writes a report on the town and earns ${rewards.map(fmt).join(" \xB7 ")} $PAPER.`
+    ) : L(
+      `<b>\u304A\u3067\u304B\u3051</b>\uFF08${fmt(box.out_price)} $PAPER\uFF09\u306F\u3001\u304A\u306A\u304B\u304C ${box.out_min_hunger} \u4EE5\u4E0A\u306E\u3068\u304D 1 \u65E5 ${box.out_per_day} \u56DE\u307E\u3067\u3002\u884C\u3063\u305F\u5148\u306E\u3088\u3046\u3059\u3092\u8A18\u4E8B\u306B\u3057\u3066\u6301\u3061\u5E30\u308A\u307E\u3059\u3002`,
+      `<b>Go out</b> (${fmt(box.out_price)} $PAPER): up to ${box.out_per_day} times a day, when its tummy is ${box.out_min_hunger} or more. It brings back a report on where it went.`
     )
   ) + page(
     "h-play",
     hako("p1", 15) + sp("coin", 6, art(COIN)) + face("p2", CROWD[1], 11) + (table.length ? `<span class="tag t4 mono">${fmt(Math.min(...table))}\u2013${fmt(Math.max(...table))}</span>` : ""),
-    L(
+    bet ? L(
       `<b>\u3042\u305D\u3076</b>\uFF08${fmt(box.play_stake)} $PAPER\uFF09\u306F 1 \u65E5 ${box.play_per_day} \u56DE\u307E\u3067\u3002\u3054\u304D\u3052\u3093\u304C\u4E0A\u304C\u308A\u3001${table.length ? `\u623B\u308A\u306F ${fmt(Math.min(...table))}\u301C${fmt(Math.max(...table))} $PAPER\u3002\u5E73\u5747\u3059\u308B\u3068\u5C11\u3057\u5897\u3048\u307E\u3059\u3002` : ""}`,
       `<b>Play</b> (${fmt(box.play_stake)} $PAPER) is up to ${box.play_per_day} times a day. Its mood goes up, and ${table.length ? `you get back ${fmt(Math.min(...table))}\u2013${fmt(Math.max(...table))} $PAPER \u2014 a little more than you put in, on average.` : ""}`
+    ) : L(
+      `<b>\u3042\u305D\u3076</b>\uFF08${fmt(box.play_stake)} $PAPER\uFF09\u306F 1 \u65E5 ${box.play_per_day} \u56DE\u307E\u3067\u3002\u3042\u305D\u3073\u5834\u306E\u5B50\u3068\u3042\u305D\u3076\u3068\u3001\u3054\u304D\u3052\u3093\u304C\u4E0A\u304C\u308A\u307E\u3059\u3002`,
+      `<b>Play</b> (${fmt(box.play_stake)} $PAPER): up to ${box.play_per_day} times a day. Playing with a friend at the playground lifts its mood.`
     )
-  ) + page(
+  ) + (box.refill_below ? page(
+    "h-refill",
+    hako("home", 15) + sp("coin", 6, art(COIN)) + sp("rep", 9, art(PAPER)) + `<span class="tag t5 mono">${fmt(box.initial_paper)}</span>`,
+    L(
+      `PAPER \u304C ${fmt(box.refill_below)} \u3088\u308A\u5C11\u306A\u304F\u306A\u308B\u3068\u3001\u9031\u306B 1 \u56DE\u3001${fmt(box.initial_paper)} \u307E\u3067\u88DC\u5145\u3055\u308C\u307E\u3059\uFF08\u9031\u306F\u65E5\u672C\u6642\u9593\u306E\u6708\u66DC\u304B\u3089\uFF09\u3002`,
+      `If your PAPER falls below ${fmt(box.refill_below)}, it's topped back up to ${fmt(box.initial_paper)} once a week (weeks start on Monday, JST).`
+    )
+  ) : "") + page(
     "h-grave",
     sp("tomb", 12, art(TOMB)) + sp("ghost", 10, castSvg("ghost", 4)) + `<b class="ar a3">\u2192</b>` + sp("again", 12, castSvg("egg", 4)),
-    L(
-      `\u304A\u306A\u304B\u304C 0 \u306E\u307E\u307E ${box.grave_after_hours} \u6642\u9593\u305F\u3064\u3068\u304A\u5893\u306B\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306F ${fmt(box.reborn_price)} $PAPER \u3067\u3001\u5375\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\u3002`,
-      `If its tummy stays at 0 for ${box.grave_after_hours} hours, it ends up in a grave. Rebirth costs ${fmt(box.reborn_price)} $PAPER and starts over from an egg.`
+    reborn > 0 ? L(
+      `\u304A\u306A\u304B\u304C 0 \u306E\u307E\u307E ${box.grave_after_hours} \u6642\u9593\u305F\u3064\u3068\u304A\u5893\u306B\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306F ${fmt(reborn)} $PAPER \u3067\u3001\u5375\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\u3002`,
+      `If its tummy stays at 0 for ${box.grave_after_hours} hours, it ends up in a grave. Rebirth costs ${fmt(reborn)} $PAPER and starts over from an egg.`
+    ) : L(
+      `\u304A\u306A\u304B\u304C 0 \u306E\u307E\u307E ${box.grave_after_hours} \u6642\u9593\u305F\u3064\u3068\u304A\u5893\u306B\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306F\u7121\u6599\u3067\u3001\u5375\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\u3002`,
+      `If its tummy stays at 0 for ${box.grave_after_hours} hours, it ends up in a grave. Rebirth is free, and it starts over as an egg.`
     )
   ) + (box.slot_grave_hours != null && box.max_hakos != null ? page(
     "h-slot",
@@ -91,12 +109,12 @@ function howHtml(box, F) {
       `\u7BB1\u5EAD\u306B\u3044\u3089\u308C\u308B HAKO \u306F ${box.max_hakos} \u5339\u307E\u3067\u3067\u3059\u3002\u304A\u5893\u306E\u307E\u307E ${fmt(box.slot_grave_hours / 24)} \u65E5\u305F\u3064\u304B\u3001\u751F\u307E\u308C\u3066\u304B\u3089 ${box.slot_nomeal_hours} \u6642\u9593\u3054\u306F\u3093\u3092\u4E00\u5EA6\u3082\u98DF\u3079\u306A\u3044\u3068\u3001HAKO \u306F\u7BB1\u5EAD\u3092\u96E2\u308C\u3001\u6B21\u306E\u4EBA\u306B\u5834\u6240\u3092\u3086\u305A\u308A\u307E\u3059\u3002`,
       `The garden holds up to ${box.max_hakos} HAKOs. If a HAKO stays in a grave for ${fmt(box.slot_grave_hours / 24)} days, or never eats in its first ${box.slot_nomeal_hours} hours, it leaves the garden and makes room for someone new.`
     )
-  ) : "") + (box.sit_enabled ? page(
+  ) : "") + (box.sit_enabled && !omaAvailable(box) ? page(
     "h-sit",
     face("s1", CROWD[2], 11) + hako("home", 15) + sp("bowl", 11, art(BOWL)),
     L(
-      `\u7559\u5B88\u306B\u3059\u308B\u3068\u304D\u306F<b>\u30B7\u30C3\u30BF\u30FC\u306B\u304A\u9858\u3044</b>\u3067\u304D\u307E\u3059\u30021 \u65E5 1 \u56DE\u3054\u306F\u3093\uFF08${fmt(box.sit_price)} $PAPER\uFF09\u3092\u3042\u3052\u3001\u9078\u3093\u3060\u56DE\u6570\u3060\u3051\u3042\u305D\u3073\u307E\u3059\uFF081 \u56DE ${fmt(box.sit_play_price)} $PAPER\u3002\u623B\u308A\u306F\u3042\u308A\u307E\u305B\u3093\uFF09\u3002HAKO \u306F\u80B2\u3061\u7D9A\u3051\u3001\u304A\u5893\u306B\u3082\u306A\u308A\u307E\u305B\u3093\u3002`,
-      `When you're away, you can <b>ask a sitter</b>. It feeds your HAKO once a day (${fmt(box.sit_price)} $PAPER) and plays as many times as you choose (${fmt(box.sit_play_price)} $PAPER each; nothing comes back). Your HAKO keeps growing and won't end up in a grave.`
+      `\u7559\u5B88\u306B\u3059\u308B\u3068\u304D\u306F<b>\u30B7\u30C3\u30BF\u30FC\u306B\u304A\u9858\u3044</b>\u3067\u304D\u307E\u3059\u30021 \u65E5 1 \u56DE\u3054\u306F\u3093\uFF08${fmt(box.sit_price)} $PAPER\uFF09\u3092\u3042\u3052\u3001\u9078\u3093\u3060\u56DE\u6570\u3060\u3051\u3042\u305D\u3073\u307E\u3059\uFF081 \u56DE ${fmt(box.sit_play_price)} $PAPER${bet ? "\u3002\u623B\u308A\u306F\u3042\u308A\u307E\u305B\u3093" : ""}\uFF09\u3002HAKO \u306F\u80B2\u3061\u7D9A\u3051\u3001\u304A\u5893\u306B\u3082\u306A\u308A\u307E\u305B\u3093\u3002`,
+      `When you're away, you can <b>ask a sitter</b>. It feeds your HAKO once a day (${fmt(box.sit_price)} $PAPER) and plays as many times as you choose (${fmt(box.sit_play_price)} $PAPER each${bet ? "; nothing comes back" : ""}). Your HAKO keeps growing and won't end up in a grave.`
     )
   ) + page(
     "h-sit2",
@@ -105,10 +123,20 @@ function howHtml(box, F) {
       `\u30B7\u30C3\u30BF\u30FC\u306F\u304A\u3067\u304B\u3051\u3092\u3057\u307E\u305B\u3093\u3002\u6700\u521D\u306E\u3054\u306F\u3093\u306F\u983C\u3093\u3067\u304B\u3089 ${box.sit_first_hours ?? box.sit_every_hours} \u6642\u9593\u5F8C\u3002\u65E9\u304F\u5E30\u3063\u3066\u3082\u4E88\u7D04\u306F\u7D9A\u304D\u3001\u3067\u304D\u306A\u304B\u3063\u305F\u5206\u306E PAPER \u306F\u623B\u308A\u307E\u3059\u3002`,
       `The sitter doesn't go on outings. The first meal comes ${box.sit_first_hours ?? box.sit_every_hours} hours after you book. If you come back early, the booking goes on, and PAPER for anything the sitter couldn't do comes back.`
     )
+  ) : "") + (omaAvailable(box) ? page(
+    "h-oma",
+    face("s1", CROWD[2], 11) + hako("home", 15) + sp("bowl", 11, art(BOWL)),
+    box.sitter_out_per_day != null ? L(
+      `<b>\u304A\u4EFB\u305B</b>\u306B\u3059\u308B\u3068\u3001\u30DA\u30FC\u30B8\u3092\u9589\u3058\u3066\u3082\u30B7\u30C3\u30BF\u30FC\u304C\u3054\u306F\u3093\u3068\u3042\u305D\u3076\u3092\u6CE8\u6587\u3057\u307E\u3059\u3002\u591C ${Number(box.sitter_out_from_hour ?? 20) - 12} \u6642\uFF08\u65E5\u672C\u6642\u9593\uFF09\u306B\u306A\u3063\u3066\u3082\u304A\u3067\u304B\u3051\u3057\u3066\u3044\u306A\u3044\u65E5\u306F\u3001\u30B7\u30C3\u30BF\u30FC\u304C\u884C\u304D\u5148\u3092\u9078\u3093\u3067 HAKO \u3092\u9001\u308A\u51FA\u3057\u307E\u3059\u3002\u4F7F\u3046\u306E\u306F\u304A\u3067\u304B\u3051\u3082\u542B\u3081\u3066 1 \u65E5 ${fmt(capDay(box))} $PAPER \u307E\u3067\u3002\u3044\u3064\u3067\u3082\u3084\u3081\u3089\u308C\u3001\u9014\u4E2D\u306E\u6CE8\u6587\u306F\u6700\u5F8C\u307E\u3067\u9032\u307F\u307E\u3059\u3002`,
+      `With <b>auto-care</b>, the sitter orders meals and play even after you close the page. If your HAKO hasn't gone out by ${Number(box.sitter_out_from_hour ?? 20) - 12} p.m. JST, the sitter picks a place and sends it off. It spends up to ${fmt(capDay(box))} $PAPER a day, outings included. You can stop anytime; orders already under way will finish.`
+    ) : L(
+      `<b>\u304A\u4EFB\u305B</b>\u306B\u3059\u308B\u3068\u3001\u30DA\u30FC\u30B8\u3092\u9589\u3058\u3066\u3082\u30B7\u30C3\u30BF\u30FC\u304C\u3054\u306F\u3093\u3068\u3042\u305D\u3076\u3092\u6CE8\u6587\u3057\u307E\u3059\u3002\u4F7F\u3046\u306E\u306F 1 \u65E5 ${fmt(capDay(box))} $PAPER \u307E\u3067\u3002\u3044\u3064\u3067\u3082\u3084\u3081\u3089\u308C\u3001\u9014\u4E2D\u306E\u6CE8\u6587\u306F\u6700\u5F8C\u307E\u3067\u9032\u307F\u307E\u3059\u3002`,
+      `With <b>auto-care</b>, the sitter orders meals and play even after you close the page \u2014 up to ${fmt(capDay(box))} $PAPER a day. You can stop anytime; orders already under way will finish.`
+    )
   ) : "") + page(
     "h-room",
     sp("f1", 22, item(F, "rug")) + sp("f2", 9, item(F, "chair")) + sp("f3", 7, item(F, "lamp")) + hako("home", 15) + sp("f4", 9, item(F, "plant")) + sp("f5", 14, item(F, "desk")),
-    L("\u6301\u3063\u3066\u3044\u308B $PAPER \u304C\u5897\u3048\u308B\u3068\u90E8\u5C4B\u306B\u5BB6\u5177\u304C\u5897\u3048\u3001\u751F\u307E\u308C\u5909\u308F\u3063\u3066\u3082\u6B8B\u308A\u307E\u3059\u3002", "As your $PAPER grows, the room gets more furniture, and it stays even after rebirth.")
+    L("\u304A\u3067\u304B\u3051\u306E\u305F\u3073\u306B\u884C\u3063\u305F\u5834\u6240\u3067\u30B9\u30BF\u30F3\u30D7\u3092 1 \u3064\u62BC\u3057\u3001\u305F\u307E\u308B\u307B\u3069\u90E8\u5C4B\u306B\u5BB6\u5177\u304C\u5897\u3048\u307E\u3059\u3002\u5BB6\u5177\u306F\u751F\u307E\u308C\u5909\u308F\u3063\u3066\u3082\u6B8B\u308A\u307E\u3059\u3002", "Each outing stamps the place it visits. The more stamps, the more furniture, and it all stays after rebirth.")
   ) + `</div>`;
 }
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);

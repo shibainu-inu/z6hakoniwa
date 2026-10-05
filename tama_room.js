@@ -1,6 +1,6 @@
 import { spriteRows, iconRows, inside, paint, THEMES } from "./tama_sprite.js";
 import { L } from "./tama_i18n.js";
-import { boxAt } from "./tama_core.js";
+import { boxAt, stamps } from "./tama_core.js";
 const FRAME = { bg: "#f4f1ea", ink: "#16151c", sub: "#55525e", edge: "#c9a181" };
 function lifetime(events, box, localDay) {
   const n = { meals: 0, outs: 0, plays: 0, days: 0, rebirths: 0, earned: 0 };
@@ -15,7 +15,8 @@ function lifetime(events, box, localDay) {
     if (["meal", "play"].includes(e.t)) days.add(localDay(e.ms, box));
   }
   n.days = days.size;
-  n.peak = peakPaper(events, box);
+  n.stamps = Object.values(stamps(events)).reduce((a, s) => a + s.n, 0);
+  n.peak = peakPaper(events.filter((e) => e.ms < PEAK_UNTIL), box);
   const was = { meals: 0, outs: 0, plays: 0, days: 0, rebirths: 0 }, wdays = new Set();
   for (const e of events) {
     if (e.ms >= WAS_UNTIL) continue;
@@ -42,12 +43,13 @@ function peakPaper(events, box) {
   return Math.round(peak * 100) / 100;
 }
 const WAS_UNTIL = 17910261e5;
-const has = (it, n) => (n[it.when[0]] ?? 0) >= it.when[1] || !!it.was && (n.was?.[it.was[0]] ?? 0) >= it.was[1];
+const PEAK_UNTIL = 17912556e5;
+const has = (it, n) => (n[it.when[0]] ?? 0) >= it.when[1] || !!it.was && (n.was?.[it.was[0]] ?? 0) >= it.was[1] || it.peak != null && (n.peak ?? 0) >= it.peak;
 const unlocked = (F, n) => F.items.filter((it) => has(it, n));
 const nextUnlock = (F, n) => F.items.find((it) => !has(it, n)) ?? null;
 const WHEN_JA = { meals: "\u3054\u306F\u3093", outs: "\u304A\u3067\u304B\u3051", plays: "\u3042\u305D\u3076", days: "\u304A\u4E16\u8A71\u3057\u305F\u65E5", rebirths: "\u751F\u307E\u308C\u5909\u308F\u308A" };
 const WHEN_EN = { meals: "meals", outs: "outings", plays: "plays", days: "care days", rebirths: "rebirths" };
-const whenText = (it) => it.when[0] === "peak" ? L(`$PAPER \u304C ${Number(it.when[1]).toLocaleString("en-US")} \u306B\u306A\u3063\u305F\u3089`, `at ${Number(it.when[1]).toLocaleString("en-US")} $PAPER`) : L(`${WHEN_JA[it.when[0]]} ${it.when[1]} ${it.when[0] === "days" ? "\u65E5" : "\u56DE"}`, `${it.when[1]} ${WHEN_EN[it.when[0]]}`);
+const whenText = (it, n) => it.when[0] === "stamps" ? ((k) => L(`\u30B9\u30BF\u30F3\u30D7\u3042\u3068 ${k} \u3064`, `${k} more stamp${k === 1 ? "" : "s"}`))(Math.max(0, it.when[1] - (n?.stamps ?? 0))) : L(`${WHEN_JA[it.when[0]]} ${it.when[1]} ${it.when[0] === "days" ? "\u65E5" : "\u56DE"}`, `${it.when[1]} ${WHEN_EN[it.when[0]]}`);
 function dots(ox, oy, rows, px, color) {
   let d = "";
   rows.forEach((r, y) => {
@@ -201,6 +203,7 @@ function svgToPng(svg, w = 1200, h = 630) {
 export {
   FRAME,
   HAKO_PX,
+  PEAK_UNTIL,
   WAS_UNTIL,
   artLayers,
   artSvg,

@@ -1,12 +1,13 @@
-import { lifeState, localDay, tamaLine, fillArticle, rewardOf, sitSchedule, sitWhy, HOUR, boxAt } from "./tama_core.js";
-import { spriteSvg, spriteRows } from "./tama_sprite.js";
+import { lifeState, localDay, tamaLine, fillArticle, rewardOf, sitSchedule, sitWhy, HOUR, boxAt, playBet, outCards, hostWords, visitPrompt, stamps, stampBook, STAMP_WELCOME } from "./tama_core.js";
+import { spriteSvg, spriteRows, faceSvg } from "./tama_sprite.js";
 import { L, getLang, setLang } from "./tama_i18n.js";
-import { setVenue, makeSigner, readTail } from "./tama_net.js";
+import { setVenue, makeSigner, readTail, sha256Hex } from "./tama_net.js";
 import * as K from "./tama_key.js";
 import { Deal, SitDeal, slotKind, dealKinds } from "./tama_deal.js";
 import { lifetime, unlocked, nextUnlock, whenText, roomSvg, artSvg, frameSvg, scrapSvg, svgToPng, spot, HAKO_PX } from "./tama_room.js";
 import { renderGarden } from "./tama_garden.js";
 import { pickPhrase, phraseText } from "./tama_phrases.js";
+import * as O from "./tama_omakase.js";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
@@ -422,8 +423,8 @@ function render() {
   if (!st.born) return renderEgg();
   const fee = Number(cur().reborn_price ?? 0);
   const graveNote = st.grave ? `<p class="note">` + L(
-    `\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306B\u306F ${fmt(fee)} $PAPER \u304B\u304B\u308A\u307E\u3059${m.balance < fee ? `\uFF08\u3044\u307E\u306F\u8DB3\u308A\u306A\u3044\u306E\u3067\u3001\u8CA1\u5E03\u304C 0 \u306B\u306A\u3063\u3066\u751F\u307E\u308C\u5909\u308F\u308A\u307E\u3059\uFF09` : ""}\u3002\u304A\u5893\u306E\u9593\u306F\u3001\u304A\u3067\u304B\u3051\u3068\u3042\u305D\u3076\u306F\u3067\u304D\u307E\u305B\u3093\u3002`,
-    `Its tummy stayed empty for ${app.box.grave_after_hours} hours, so it is resting in a grave. When it is reborn, the same HAKO starts over from an egg (the room and its record stay). Rebirth costs ${fmt(fee)} $PAPER${m.balance < fee ? ` (you don't have enough now, so your wallet will go to 0)` : ""}. While it rests, it can't go out or play.`
+    `\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002` + (fee > 0 ? `\u751F\u307E\u308C\u5909\u308F\u308A\u306B\u306F ${fmt(fee)} $PAPER \u304B\u304B\u308A\u307E\u3059${m.balance < fee ? `\uFF08\u3044\u307E\u306F\u8DB3\u308A\u306A\u3044\u306E\u3067\u3001\u8CA1\u5E03\u304C 0 \u306B\u306A\u3063\u3066\u751F\u307E\u308C\u5909\u308F\u308A\u307E\u3059\uFF09` : ""}\u3002` : "") + `\u304A\u5893\u306E\u9593\u306F\u3001\u304A\u3067\u304B\u3051\u3068\u3042\u305D\u3076\u306F\u3067\u304D\u307E\u305B\u3093\u3002`,
+    `Its tummy stayed empty for ${app.box.grave_after_hours} hours, so it is resting in a grave. When it is reborn, the same HAKO starts over from an egg (the room and its record stay). ` + (fee > 0 ? `Rebirth costs ${fmt(fee)} $PAPER${m.balance < fee ? ` (you don't have enough now, so your wallet will go to 0)` : ""}. ` : "") + `While it rests, it can't go out or play.`
   ) + `</p>` : "";
   app.sayLines = st.grave ? [] : sayLines(m.fold);
   const w = $("wallet");
@@ -449,7 +450,8 @@ function render() {
       ${!st.grave && st.stage !== "hako" && app.box.grow_hours ? `<p class="hint">${L(`${Math.round(app.box.grow_hours / 24)} \u65E5\u80B2\u3066\u308B\u3068\u2026\uFF1F`, `Raise it for ${Math.round(app.box.grow_hours / 24)} days and\u2026?`)}</p>` : ""}
       ${graveNote}
       <div class="actions main">${acts}</div>
-      ${sitHtml(st, m)}
+      ${app.outCards && !st.grave ? cardsHtml() : ""}
+      ${O.available(app.box) ? omakaseHtml(st) + (sitLive().length ? sitHtml(st, m) : "") : sitHtml(st, m)}
       <p id="why" class="why${app.why && app.whyBad ? " bad" : ""}">${esc(app.why ?? "")}</p>
       <div id="said"></div>
       ${roomInfo(m, st)}
@@ -473,6 +475,8 @@ function render() {
   if (cam) cam.onclick = () => snapshot(app.m, app.st);
   wireName();
   wireSit();
+  wireOmakase();
+  wireCards();
   const sk = $("savekey");
   if (sk) sk.onclick = () => {
     const rec = K.loadRec();
@@ -675,8 +679,100 @@ async function bookSit(n, p = 0) {
   }
   render();
 }
+function omaState() {
+  return O.status({ plan: O.loadPlan(app.did), delegates: app.stats?.delegates ?? app.stats?.box?.delegates ?? {}, ownerDid: app.did, ledgerMs: Number(app.stats?.box?.now_ms ?? 0), now: Date.now() });
+}
+function omakaseHtml(st) {
+  if (st.grave && omaState().mode === "off") return "";
+  const s = omaState(), cap = O.capDay(cur()), maxD = O.maxDays(app.box);
+  if (app.omaBusy) return `<div class="sit"><p class="small">${L("\u624B\u7D9A\u304D\u3092\u3057\u3066\u3044\u307E\u3059\u2026", "Updating\u2026")}</p></div>`;
+  if (s.mode === "starting") return `<div class="sit"><p class="small">${s.stop ? L("\u304A\u4EFB\u305B\u3092\u3084\u3081\u308B\u624B\u7D9A\u304D\u304C\u9014\u4E2D\u3067\u6B62\u307E\u308A\u307E\u3057\u305F", "Stopping auto-care didn't finish") : L("\u304A\u4EFB\u305B\u306E\u624B\u7D9A\u304D\u304C\u9014\u4E2D\u3067\u6B62\u307E\u308A\u307E\u3057\u305F", "Auto-care setup didn't finish")}</p>
+      <div class="actions"><button type="button" class="btn" id="oma-resume">${L("\u7D9A\u304D\u304B\u3089\u9032\u3081\u308B", "Resume")}</button><button type="button" class="btn sub" id="oma-abandon">${L("\u53D6\u308A\u3084\u3081\u308B", "Cancel")}</button></div></div>`;
+  const form = (ext) => {
+    const n = Math.min(Math.max(1, Number(app.omaDays ?? Math.min(7, maxD))), maxD);
+    const opts = Array.from({ length: maxD }, (_, i) => `<option value="${i + 1}"${i + 1 === n ? " selected" : ""}>${L(`${i + 1} \u65E5`, `${i + 1} day${i ? "s" : ""}`)}</option>`).join("");
+    return `<form class="sitf" id="omaf">
+      <label>${ext ? L("\u4ECA\u65E5\u304B\u3089\u4F55\u65E5", "Days from today") : L("\u4EFB\u305B\u308B\u65E5\u6570", "How many days")}<select id="oma-days">${opts}</select></label>
+      <div class="actions"><button type="submit" class="btn">${ext ? L("\u3053\u306E\u65E5\u6570\u306B\u3059\u308B", "Update") : L("\u59CB\u3081\u308B", "Start")} <span class="price">${L("\u6700\u5927", "max")} ${fmt(cap * n)} $PAPER</span></button><button type="button" class="btn sub" id="oma-back">${L("\u623B\u308B", "Back")}</button></div></form>`;
+  };
+  if (s.mode === "on") {
+    const head = `<p class="small"><b>${L("\u304A\u4EFB\u305B\u4E2D", "Auto-care on")}</b>${L(`\uFF08${whenShort(s.until)} \u307E\u3067\u30FB1 \u65E5 ${fmt(s.cap)} $PAPER \u307E\u3067\uFF09`, ` (until ${whenShort(s.until)}, up to ${fmt(s.cap)} $PAPER/day)`)}</p>`;
+    if (app.omaOpen === "ext") return `<div class="sit">${head}${form(true)}</div>`;
+    if (app.omaOpen === "stop") return `<div class="sit">${head}<p class="small">${L("\u65B0\u3057\u3044\u6CE8\u6587\u3092\u6B62\u3081\u307E\u3059", "No new orders from now.")}</p>
+      <div class="actions"><button type="button" class="btn" id="oma-stop-go">${L("\u3084\u3081\u308B", "Stop")}</button><button type="button" class="btn sub" id="oma-back">${L("\u623B\u308B", "Back")}</button></div></div>`;
+    return `<div class="sit">${head}<div class="actions"><button type="button" class="btn sub" id="oma-ext">${L("\u65E5\u6570\u3092\u5909\u3048\u308B", "Change days")}</button><button type="button" class="btn sub" id="oma-stop">${L("\u3084\u3081\u308B", "Stop")}</button></div></div>`;
+  }
+  if (st.grave) return "";
+  if (app.omaOpen === "new") return `<div class="sit">${form(false)}</div>`;
+  return `<div class="actions"><button type="button" class="btn sub" id="oma-open">${L("\u304A\u4EFB\u305B\u3092\u59CB\u3081\u308B", "Start auto-care")}</button></div>`;
+}
+function wireOmakase() {
+  const on = (id, f2) => {
+    const b = $(id);
+    if (b) b.onclick = f2;
+  };
+  on("oma-open", () => {
+    app.omaOpen = "new";
+    render();
+  });
+  on("oma-ext", () => {
+    app.omaOpen = "ext";
+    render();
+  });
+  on("oma-stop", () => {
+    app.omaOpen = "stop";
+    render();
+  });
+  on("oma-back", () => {
+    app.omaOpen = null;
+    render();
+  });
+  on("oma-abandon", () => {
+    O.abandon(app.did);
+    render();
+  });
+  on("oma-resume", () => omaGo({}));
+  on("oma-stop-go", () => omaGo({ stop: true }));
+  const sel = $("oma-days");
+  if (sel) sel.onchange = () => {
+    app.omaDays = Number(sel.value);
+    render();
+  };
+  const f = $("omaf");
+  if (f) f.onsubmit = (ev) => {
+    ev.preventDefault();
+    omaGo({ days: Number($("oma-days").value) });
+  };
+}
+async function omaGo(want) {
+  if (app.omaBusy || !app.priv) return;
+  const rec = K.loadRec();
+  if (!rec || rec.did !== app.did) return;
+  const ext = !want.stop && omaState().mode === "on";
+  app.omaBusy = true;
+  app.omaOpen = null;
+  render();
+  const r = await O.run({
+    box: { ...app.box, ...cur() },
+    ownerDid: app.did,
+    ownerPriv: app.priv,
+    loadRec: K.loadRec,
+    saveRec: K.saveRec,
+    now: Date.now(),
+    delegates: app.stats?.delegates ?? {},
+    ledgerMs: Number(app.stats?.box?.now_ms ?? 0),
+    signerOf: (did, priv) => did === app.did ? app.signer : watched(makeSigner(did, priv)),
+    post: (sg, room, text) => sg.post(room, text)
+  }, want.stop ? { stop: true } : want.days ? { days: want.days } : {});
+  app.omaBusy = false;
+  if (r.ok) say(want.stop ? L("\u304A\u4EFB\u305B\u3092\u3084\u3081\u307E\u3057\u305F", "Auto-care stopped.") : ext ? L("\u304A\u4EFB\u305B\u306E\u65E5\u6570\u3092\u5909\u3048\u307E\u3057\u305F", "Auto-care updated.") : L("\u304A\u4EFB\u305B\u3092\u59CB\u3081\u307E\u3057\u305F\u3002\u30DA\u30FC\u30B8\u3092\u9589\u3058\u3066\u3082\u7D9A\u304D\u307E\u3059", "Auto-care is on. It keeps going after you close the page."), false);
+  else if (r.why === "nothing to resume") say("", false);
+  else say(r.why === "not delegated" ? L("\u3044\u307E\u306F\u304A\u4EFB\u305B\u3057\u3066\u3044\u307E\u305B\u3093", "Auto-care is off right now.") : L("\u624B\u7D9A\u304D\u304C\u9014\u4E2D\u3067\u6B62\u307E\u308A\u307E\u3057\u305F\u3002\u300C\u7D9A\u304D\u304B\u3089\u9032\u3081\u308B\u300D\u3092\u62BC\u3057\u3066\u304F\u3060\u3055\u3044", "Something went wrong. Tap \u201CResume\u201D to finish."));
+  render();
+}
 function actionsHtml(st, m) {
-  if (st.grave) return `<button class="btn" id="reborn" style="--c:var(--accent)"><span class="dot" style="background:var(--accent)"></span>${L("\u751F\u307E\u308C\u5909\u308F\u308B", "Be reborn")} <span class="price">${fmt(Math.min(Number(cur().reborn_price ?? 0), Math.max(0, m.balance)))} $PAPER</span></button>`;
+  const rfee = Math.min(Number(cur().reborn_price ?? 0), Math.max(0, m.balance));
+  if (st.grave) return `<button class="btn" id="reborn" style="--c:var(--accent)"><span class="dot" style="background:var(--accent)"></span>${L("\u751F\u307E\u308C\u5909\u308F\u308B", "Be reborn")}${rfee > 0 ? ` <span class="price">${fmt(rfee)} $PAPER</span>` : ""}</button>`;
   const price = { meal: cur().meal_price, out: cur().out_price, play: cur().play_stake };
   return dealKinds.map(([k, label]) => {
     const why = actionBlock(k, st, m);
@@ -763,11 +859,56 @@ function roomInfo(m, st) {
   const art = app.lastArticle ?? (m.fold?.outs ?? []).slice(-1)[0] ?? null;
   return `<div class="roominfo" id="room"><p class="label">ROOM \xB7 ${have.length}/${app.F.items.length}</p>
     <div class="chips">${have.map((x) => `<span class="chip">${esc(L(x.ja, x.en ?? x.ja))}</span>`).join("") || `<span class="small">${L("\u307E\u3060\u4F55\u3082\u306A\u3044\u90E8\u5C4B\u3067\u3059", "The room is still empty")}</span>`}</div>
-    ${next ? `<p class="small">${L("\u6B21\u306F", "Next:")} <b>${esc(L(next.ja, next.en ?? next.ja))}</b>${L("\uFF08", " (")}${esc(whenText(next))}${L("\uFF09", ")")}</p>` : ""}
+    ${next ? `<p class="small">${L("\u6B21\u306F", "Next:")} <b>${esc(L(next.ja, next.en ?? next.ja))}</b>${L("\uFF08", " (")}${next.when[0] === "stamps" ? `<a href="#zukan" class="tozk">${esc(whenText(next, n))}</a>` : esc(whenText(next, n))}${L("\uFF09", ")")}</p>` : ""}
+    ${footprintsHtml(m)}
     <div class="actions">
       <button class="btn sub" id="snapshot">${L("HAKO \u3092\u30B7\u30A7\u30A2", "Share HAKO")}</button>
       <button class="btn sub" id="savekey">${L("\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58", "Save key file")}</button>
     </div></div>`;
+}
+function noticeVisitors() {
+  if (!app.did || !app.stats) return;
+  const key = `tama_seen_steps_v1:${app.did}`, v = merged(app.stats, app.did).fold?.visitors ?? [];
+  let seen = 0;
+  try {
+    seen = Number(localStorage.getItem(key) ?? 0);
+  } catch {
+    seen = 0;
+  }
+  const fresh = v.filter((x) => x.ms > Math.max(seen, Date.now() - 7 * 864e5));
+  if (!v.length) return;
+  try {
+    localStorage.setItem(key, String(v.at(-1).ms));
+  } catch {
+  }
+  if (!fresh.length || app.why) return;
+  const who = [...new Set(fresh.map((x) => `HAKO \u2026${x.from.slice(-4)}`))];
+  say(who.length === 1 ? L(`${who[0]} \u304C\u304A\u5EAD\u306B\u6765\u307E\u3057\u305F`, `${who[0]} visited your garden`) : L(`${who[0]} \u307B\u304B ${who.length - 1} \u5339\u304C\u304A\u5EAD\u306B\u6765\u307E\u3057\u305F`, `${who[0]} and ${who.length - 1} more visited your garden`), false);
+}
+function noticeRefill() {
+  if (!app.did || !app.stats) return;
+  const key = `tama_seen_refill_v1:${app.did}`, v = merged(app.stats, app.did).fold?.refills ?? [];
+  if (!v.length) return;
+  let seen = 0;
+  try {
+    seen = Number(localStorage.getItem(key) ?? 0);
+  } catch {
+    seen = 0;
+  }
+  const last = v.at(-1);
+  try {
+    localStorage.setItem(key, String(last.ms));
+  } catch {
+  }
+  if (last.ms <= Math.max(seen, Date.now() - 7 * 864e5) || app.why) return;
+  const to = fmt(boxAt(app.box, last.ms).initial_paper);
+  say(L(`PAPER \u304C ${to} \u307E\u3067\u88DC\u5145\u3055\u308C\u307E\u3057\u305F`, `Your PAPER was topped up to ${to}`), false);
+}
+function footprintsHtml(m) {
+  const since = Date.now() - 7 * 864e5, seen = new Set();
+  const v = [...m.fold?.visitors ?? []].reverse().filter((x) => x.ms >= since && !seen.has(x.from) && seen.add(x.from)).slice(0, 8);
+  if (!v.length) return "";
+  return `<p class="label" style="margin-top:12px">${L("\u8DB3\u3042\u3068", "Footprints")}</p><div class="steps">${v.map((x) => `<span class="step" title="${esc(`HAKO \u2026${x.from.slice(-4)} \xB7 ${whenShort(x.ms)}`)}">${faceSvg(x.from, 2)}<span class="id">\u2026${esc(x.from.slice(-4))}</span></span>`).join("")}</div>`;
 }
 async function snapshot(m, st) {
   const n = lifetime(m.events, app.box, localDay);
@@ -862,11 +1003,12 @@ function renderSaid(m) {
   if (app.lastArticle && !(fold?.outs ?? []).some((o) => o.contract === app.lastArticle.contract)) outs = [app.lastArticle];
   const h = [
     ...outs.map((o) => `<details class="article" data-c="${esc(o.contract ?? "")}"${app.articleOpen === o.contract ? " open" : ""}><summary><h3>${esc(o.lines[0] ?? "")}</h3><span class="more"><span class="rd">${L("\u8A18\u4E8B\u3092\u8AAD\u3080 \u25BE", "Read the report \u25BE")}</span><span class="cl">${L("\u9589\u3058\u308B \u25B4", "Close \u25B4")}</span></span></summary>
-      ${o.day ? `<p class="meta mono">${esc(o.day)}${o.nth ? L(` \xB7 \u4ECA\u65E5 ${o.nth} \u56DE\u76EE`, ` \xB7 outing #${o.nth}`) : ""}</p>` : ""}${o.lines.slice(1).map((l) => `<p>${esc(l)}</p>`).join("")}</details>`),
+      ${o.day || o.dest ? `<p class="meta mono">${[o.day ? esc(o.day) : "", o.dest ? esc(destName(o.dest)) : "", o.nth ? L(`\u4ECA\u65E5 ${o.nth} \u56DE\u76EE`, `#${o.nth} today`) : ""].filter(Boolean).join(" \xB7 ")}</p>` : ""}${o.lines.slice(1).map((l) => `<p>${esc(l)}</p>`).join("")}${o.contract ? dealLink(o.contract) : ""}</details>`),
     ...plays.length ? [`<p class="label" style="margin-top:12px">${L("\u4ECA\u65E5\u306E\u3042\u305D\u3076", "Today's plays")}</p><ul class="menu">${plays.map((e) => {
       const stake = Number(e.price ?? cur().play_stake), back = Number(e.payout), d = back - stake;
       return `<li><span class="mono">${hm(e.ms)}</span>\u3000${fmt(stake)} \u2192 ${fmt(back)} $PAPER <span class="${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${fmt(d)}</span></li>`;
-    }).join("")}</ul>`] : []
+    }).join("")}</ul>`] : [],
+    passbookHtml(m, outs[0]?.contract ?? null)
   ].join("");
   if (app.saidHtml !== h || h && !el.firstChild) {
     el.innerHTML = h;
@@ -875,7 +1017,131 @@ function renderSaid(m) {
       app.articleOpen = d.open ? d.dataset.c : null;
       app.saidHtml = null;
     };
+    for (const d of el.querySelectorAll("details.rows")) d.ontoggle = () => {
+      app.bookOpen = d.open;
+      app.saidHtml = null;
+    };
+    for (const b of el.querySelectorAll("button.totop")) b.onclick = () => {
+      const a = el.querySelector("details.article");
+      if (!a) return;
+      a.open = true;
+      a.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    };
   }
+}
+const dealHref = (contract) => `${String(app.box.venue ?? "https://technocore.chat").replace(/\/+$/, "")}/r/mb-p-tclk-${String(contract).slice(2, 18)}`;
+const dealLink = (contract) => `<a class="mono tx" href="${esc(dealHref(contract))}" target="_blank" rel="noopener" title="${esc(L(`Technocore \u3067\u53D6\u5F15\u3092\u898B\u308B\uFF08${contract}\uFF09`, `View this deal on Technocore (${contract})`))}">${L("\u53D6\u5F15\u3092\u898B\u308B", "View deal")} \u2197</a>`;
+const monthDay = (ms) => new Date(ms).toLocaleDateString(getLang() === "ja" ? "ja-JP" : "en-US", { month: "numeric", day: "numeric" });
+function passbookHtml(m, top) {
+  const outs = [...m?.fold?.outs ?? []].reverse();
+  const zk = zukanHtml(m);
+  if (!outs.length && !zk) return "";
+  const hm = (ms) => new Date(ms).toLocaleTimeString(getLang() === "ja" ? "ja-JP" : "en-US", { hour: "2-digit", minute: "2-digit" });
+  const row = (o) => {
+    const price = Number(boxAt(app.box, o.lock_ms ?? o.ms).out_price);
+    const art = !o.dest || o.dest.kind === "town" ? TOWN_SVG : faceSvg(o.dest.to, 2);
+    const head = `<span class="mono when">${esc(hm(o.ms))}</span><span class="art">${art}</span><span class="where"><span class="nm">${esc(o.dest ? destName(o.dest) : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore"))}</span>${o.auto ? `<span class="auto">${L("\u304A\u4EFB\u305B", "Auto-care")}</span>` : ""}</span>
+      <span class="mono amt">${o.contract === top ? "\u2191 " : ""}\u2212${fmt(price)} $PAPER</span>`;
+    if (o.contract === top) return `<li><button type="button" class="totop" aria-label="${esc(L("\u4E0A\u306E\u8A18\u4E8B\u3092\u958B\u304F", "Open the report above"))}">${head}</button></li>`;
+    return `<li><details><summary>${head}</summary>
+      <div class="memo">${(o.lines ?? []).map((l, i) => i ? `<p>${esc(l)}</p>` : `<p><b>${esc(l)}</b></p>`).join("")}${dealLink(o.contract)}</div></details></li>`;
+  };
+  let day = null;
+  const items = [];
+  for (const o of outs) {
+    const d = monthDay(o.ms);
+    if (d !== day) {
+      items.push(`<li class="day mono">${esc(d)}</li>`);
+      day = d;
+    }
+    items.push(row(o));
+  }
+  return `<div class="passbook">${zk}${outs.length ? `<details class="rows"${app.bookOpen ? " open" : ""}><summary>${L(`\u3053\u308C\u307E\u3067\u306E ${outs.length} \u56DE`, `Outings so far (${outs.length})`)}</summary>
+    <ul class="book">${items.join("")}</ul></details>` : ""}</div>`;
+}
+function stampSeq(events) {
+  const seq = [];
+  for (const e of [...events].sort((a, b) => a.ms - b.ms)) {
+    if (e.t === "join" && !seq.some((x) => x.kind === "welcome")) for (let i = 0; i < STAMP_WELCOME; i++) seq.push({ kind: "welcome", to: app.did, ms: e.ms });
+    else if (e.t === "out") seq.push({ kind: e.dest?.kind ?? "town", to: e.dest?.to ?? null, ms: e.ms });
+  }
+  return seq;
+}
+const INK = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="ink0" x="-8%" y="-8%" width="116%" height="116%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.6 0 0 0 2.25" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in" result="ink"/><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" seed="11" result="w"/><feDisplacementMap in="ink" in2="w" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="ink1" x="-8%" y="-8%" width="116%" height="116%"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="17" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.6 0 0 0 2.2" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in" result="ink"/><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" seed="23" result="w"/><feDisplacementMap in="ink" in2="w" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="ink2" x="-8%" y="-8%" width="116%" height="116%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="29" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.6 0 0 0 2.3" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in" result="ink"/><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" seed="31" result="w"/><feDisplacementMap in="ink" in2="w" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="ink3" x="-8%" y="-8%" width="116%" height="116%"><feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="41" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.6 0 0 0 2.15" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in" result="ink"/><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" seed="43" result="w"/><feDisplacementMap in="ink" in2="w" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>`;
+const hanko = (x, i, isNew) => `<span class="hk${isNew ? " new" : ""}" style="--r:${i * 37 % 17 - 8}deg;filter:url(#ink${i % 4})" title="${esc(x.kind === "welcome" ? L("\u306F\u3058\u3081\u306E\u30B9\u30BF\u30F3\u30D7", "Welcome stamp") : `${destName(x)} \xB7 ${monthDay(x.ms)}`)}"><span class="st">${x.kind === "town" ? TOWN_SVG : faceSvg(x.to, 2)}</span></span>`;
+function zukanHtml(m) {
+  if (!app.did || !visitsOn() || !app.F) return "";
+  const b = stampBook(app.box, app.did, app.stats?.slots?.in ?? [], stamps(m?.events ?? []));
+  const have = b.now.filter((x) => x.n > 0).length;
+  const seq = stampSeq(m?.events ?? []);
+  const cards = app.F.items.filter((it2) => it2.when[0] === "stamps").sort((a, c) => a.when[1] - c.when[1]);
+  const seenKey2 = `tama_seen_card_v1:${app.did}`;
+  let seen = app.cardSeen;
+  if (seen == null) {
+    try {
+      const v = localStorage.getItem(seenKey2);
+      seen = v == null ? 0 : Number(v) || 0;
+    } catch {
+      seen = 0;
+    }
+  }
+  const fresh = seen < seq.length, at = fresh ? seq.length - 1 : seq.length;
+  let k = cards.findIndex((it2) => at < it2.when[1]);
+  if (k < 0) k = cards.length - 1;
+  if (fresh && !app.cardTimer) app.cardTimer = setTimeout(() => {
+    app.cardTimer = null;
+    app.cardSeen = seq.length;
+    try {
+      localStorage.setItem(seenKey2, String(seq.length));
+    } catch {
+    }
+    app.saidHtml = null;
+    render();
+  }, 1600);
+  const from = k ? cards[k - 1].when[1] : 0, to = cards[k].when[1], it = cards[k];
+  const cells = [];
+  for (let i = from; i < to; i++) {
+    const prize = i === to - 1 ? `<span class="pz">${artSvg(it.art, app.F.palette, "css")}</span>` : "";
+    const stamped = i < seq.length;
+    cells.push(`<span class="sc${prize ? " prize" : stamped ? "" : " empty"}${prize && stamped ? " full" : ""}">${prize}${stamped ? hanko(seq[i], i, i >= seen) : ""}</span>`);
+  }
+  return `<p class="label" id="zukan" style="margin-top:16px">${L(`\u304A\u3067\u304B\u3051\u5E33\u3000\u5834\u6240 ${have} / ${b.now.length}`, `Outing log \xB7 places ${have} / ${b.now.length}`)}</p>
+    <div class="scard"><p class="sc-head"><b>${esc(L(it.ja, it.en ?? it.ja))}</b><span class="mono">${Math.min(seq.length, to) - from} / ${to - from}</span></p><div class="sc-cells">${cells.join("")}</div>${INK}</div>`;
+}
+function stampState() {
+  const m = merged(app.stats, app.did);
+  const places = Object.keys(stamps(m?.events ?? []));
+  const furn = app.F ? unlocked(app.F, lifetime(m?.events ?? [], app.box, localDay)).map((it) => it.key) : [];
+  return { places, furn };
+}
+function stampLine(before, after) {
+  const np = after.places.filter((p) => !before.places.includes(p)), nf = after.furn.filter((k) => !before.furn.includes(k));
+  const kindName = (p) => p === "town" ? L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore") : p.startsWith("npc:") ? L("\u3042\u305D\u3073\u5834", "Playhouse") : L("\u304A\u5EAD", "Garden");
+  const items = nf.map((k) => app.F.items.find((it) => it.key === k)).filter(Boolean).map((it) => L(it.ja, it.en ?? it.ja));
+  const sp = !np.length ? "" : np.length === 1 ? L(`${kindName(np[0])}\u306E\u30B9\u30BF\u30F3\u30D7\u3092\u62BC\u3057\u307E\u3057\u305F`, `Stamped: ${kindName(np[0])}`) : L(`\u30B9\u30BF\u30F3\u30D7\u3092 ${np.length} \u3064\u62BC\u3057\u307E\u3057\u305F`, `Stamped: ${np.length} places`);
+  const fu = !items.length ? "" : items.length === 1 ? L(`${items[0]}\u304C\u5C4A\u304D\u307E\u3057\u305F`, `The ${items[0].toLowerCase()} has arrived`) : items.length === 2 ? L(`${items[0]}\u3068${items[1]}\u304C\u5C4A\u304D\u307E\u3057\u305F`, `The ${items[0].toLowerCase()} and ${items[1].toLowerCase()} have arrived`) : L(`${items[0]}\u307B\u304B ${items.length - 1} \u3064\u304C\u5C4A\u304D\u307E\u3057\u305F`, `The ${items[0].toLowerCase()} and ${items.length - 1} more have arrived`);
+  return [sp, fu].filter(Boolean).join(L("\u3002", ". "));
+}
+const seenKey = () => `tama_seen_stamps_v1:${app.did}`;
+function saveSeen(st) {
+  try {
+    localStorage.setItem(seenKey(), JSON.stringify(st));
+  } catch {
+  }
+}
+function noticeStamps() {
+  if (!app.did || !app.stats || !app.F) return;
+  const now = stampState();
+  let seen = null;
+  try {
+    seen = JSON.parse(localStorage.getItem(seenKey()) ?? "null");
+  } catch {
+    seen = null;
+  }
+  saveSeen(now);
+  if (!seen || app.why) return;
+  const line = stampLine({ places: seen.places ?? [], furn: seen.furn ?? [] }, now);
+  if (line) say(line, false);
 }
 function renderReleased() {
   const h = `
@@ -917,8 +1183,8 @@ function renderEgg() {
       <div class="stage plain short"><div class="egg">${spriteSvg(null, "egg", 5)}</div></div>
       <p class="label" style="margin-top:14px">NEW HAKO</p>
       <h2>${L("HAKO \u3092\u8FCE\u3048\u308B", "Welcome a HAKO")}</h2>
-      <p>${L("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002", "A key is made inside this browser and your HAKO is born. The key is never sent anywhere. If you lose it you can't move your HAKO, so save the key file once it is born.")}</p>
-      <p class="note">${L(`\u306F\u3058\u3081\u306B ${fmt(cur().initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002`, `You start with ${fmt(cur().initial_paper)} $PAPER. PAPER is only a score inside this garden and has no monetary value. It can't be cashed out, bought or sold.`)}</p>
+      <p>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\u3092\u6C7A\u3081\u308B\u3068\u3001HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u751F\u307E\u308C\u305F\u3089\u300E\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u300F\u3092\u62BC\u3057\u3066\u304A\u3044\u3066\u304F\u3060\u3055\u3044\u3002\u9375\u304C\u306A\u3044\u3068\u3001HAKO \u306B\u4F1A\u3048\u306A\u304F\u306A\u308A\u307E\u3059\u3002", `Choose a passphrase and your HAKO will be born. Once it's born, tap "Save key file". Without the key, you can't get back to your HAKO.`)}</p>
+      <p class="note">${L(`\u306F\u3058\u3081\u306E\u304A\u3053\u3065\u304B\u3044 ${fmt(cur().initial_paper)} PAPER`, `Starting allowance: ${fmt(cur().initial_paper)} PAPER`)}</p>
       <form class="keyf" id="kf" method="post" action="#">
       <input class="vh" id="u1" name="username" type="text" autocomplete="username" tabindex="-1" aria-hidden="true" value="">
       <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08HAKO \u3092\u8D77\u3053\u3059\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09", "Passphrase (to wake your HAKO)")}<span class="pw"><input id="p1" name="password" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2"></button></span></label>
@@ -1025,6 +1291,10 @@ async function importKey(ev) {
     if (!K.isKeyFile(j)) return say(L("\u9375\u30D5\u30A1\u30A4\u30EB\u3067\u306F\u3042\u308A\u307E\u305B\u3093", "That is not a key file"));
     const cur2 = K.loadRec();
     if (cur2 && cur2.did !== j.did && !confirm(L(`\u4ECA\u306E ${K.nameOf(cur2, cur2.did)} \u306E\u9375\u3092\u3001\u8AAD\u307F\u8FBC\u3093\u3060\u9375\u3067\u7F6E\u304D\u63DB\u3048\u307E\u3059\u3002\u4ECA\u306E\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u3044\u306A\u3044\u3068\u3001\u4ECA\u306E HAKO \u306B\u306F\u623B\u308C\u307E\u305B\u3093\u3002\u7F6E\u304D\u63DB\u3048\u307E\u3059\u304B\uFF1F`, `This replaces the key for ${K.nameOf(cur2, cur2.did)} with the one you loaded. If you haven't saved the current key file, you can't get back to this HAKO. Replace it?`))) return;
+    if (cur2 && cur2.did === j.did && cur2.agent && !j.agent) {
+      j.agent = cur2.agent;
+      if (cur2.agentOk) j.agentOk = cur2.agentOk;
+    }
     K.saveRec(j);
     app.did = j.did;
     render();
@@ -1058,19 +1328,32 @@ async function reborn() {
   setTimeout(render, 2600);
   render();
 }
-async function startDeal(kind) {
+async function startDeal(kind, ctx = null) {
   const x = app.deals[kind];
   const why = actionBlock(kind, app.st, merged(app.stats, app.did));
   if (why) return say(why);
   say("");
-  const r = await x.start({ st: app.st, stats: app.stats });
+  if (kind === "out" && !ctx && visitsOn()) {
+    app.outCards = await outCards(app.box, localDay(Date.now(), app.box), app.did, app.stats?.slots?.in ?? [], sha256Hex);
+    return render();
+  }
+  const r = await x.start({ st: app.st, stats: app.stats, ctx: ctx === "town" ? null : ctx });
   if (!r.ok) say(r.why);
   render();
 }
 function onDeal(kind, ev) {
   if (ev.type === "settled") {
     if (document.body.dataset.tab !== "me") for (const a of document.querySelectorAll('[data-tab-to="me"]')) a.classList.add("ping");
-    addLocal(app.did, { t: kind, ms: ev.ms, contract: ev.contract, ...kind === "play" ? { payout: ev.delta + Number(cur().play_stake) } : {} }, ev.delta);
+    let dest = null;
+    if (kind === "out") {
+      try {
+        dest = JSON.parse(app.deals.out.st.offer.job.context).dest ?? null;
+      } catch {
+        dest = null;
+      }
+    }
+    const before = kind === "out" ? stampState() : null;
+    addLocal(app.did, { t: kind, ms: ev.ms, contract: ev.contract, ...kind === "play" && playBet(boxAt(app.box, app.deals.play?.st?.at ?? ev.ms)) ? { payout: ev.delta + Number(cur().play_stake) } : {}, ...dest ? { dest: { kind: dest.kind, to: dest.to } } : {} }, ev.delta);
     if (kind === "play") app.happyUntil = Date.now() + 8e3;
     if (kind === "out" && ev.lines) {
       let facts = null;
@@ -1079,10 +1362,15 @@ function onDeal(kind, ev) {
       } catch {
         facts = null;
       }
-      app.lastArticle = { contract: ev.contract, lines: facts ? fillArticle(ev.lines, facts) : ev.lines };
+      app.lastArticle = { contract: ev.contract, lines: facts ? fillArticle(ev.lines, facts) : ev.lines, ...dest ? { dest } : {} };
     }
     app.whyBad = false;
     app.whyAt = null;
+    if (before) {
+      const after = stampState(), line = stampLine(before, after);
+      saveSeen(after);
+      if (line) ev = { ...ev, say: ev.say ? `${ev.say}${L("\u3002", ". ")}${line}` : line };
+    }
     if (kind === "meal" && ev.say) {
       app.lastSay = ev.say;
       app.lastSayMenu = app.box.meal_menu_from != null && Date.now() >= Number(app.box.meal_menu_from);
@@ -1097,6 +1385,47 @@ function onDeal(kind, ev) {
   }
   render();
 }
+const visitsOn = () => typeof app.box.out_visit_instruction === "string" && typeof app.box.out_visit_lead === "string" && Array.isArray(app.box.out_npc_homes);
+const destName = (c) => c.kind === "garden" ? L(`HAKO \u2026${String(c.to).slice(-4)} \u306E\u304A\u5EAD`, `HAKO \u2026${String(c.to).slice(-4)}'s garden`) : c.kind === "npc" ? L(`HAKO \u2026${String(c.to).slice(-4)} \u306E\u3042\u305D\u3073\u5834`, `HAKO \u2026${String(c.to).slice(-4)}'s playhouse`) : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
+const TOWN_SVG = `<svg width="36" height="27" viewBox="0 0 12 9" shape-rendering="crispEdges" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="3.5" width="3" height="5"/><rect x="4.5" y="0.5" width="3" height="8"/><rect x="8.5" y="2.5" width="3" height="6"/></g><g fill="currentColor"><rect x="5" y="2" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/></g></svg>`;
+function cardsHtml() {
+  const one = (c, i) => {
+    const art = c.kind === "town" ? TOWN_SVG : faceSvg(c.to, 3);
+    const kind = c.kind === "garden" ? L("\u304A\u5EAD", "Garden") : c.kind === "npc" ? L("\u3042\u305D\u3073\u5834", "Playhouse") : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
+    const sub = c.kind === "town" ? L("\u8857\u306E\u69D8\u5B50", "Around town") : c.kind === "garden" ? `HAKO \u2026${esc(c.to.slice(-4))}` : L(`\u3042\u305D\u3073\u76F8\u624B \u2026${esc(c.to.slice(-4))}`, `Playmate \u2026${esc(c.to.slice(-4))}`);
+    return `<button type="button" class="dest" style="--c:${DOT.out}" data-dest="${i}" aria-label="${esc(destName(c))}"><span class="art">${art}</span><b>${kind}</b><span class="id">${sub}</span></button>`;
+  };
+  return `<div class="sit dests"><div class="dest-grid">${app.outCards.map(one).join("")}</div><div class="actions"><button type="button" class="btn sub" id="dest-back">${L("\u623B\u308B", "Back")}</button></div></div>`;
+}
+function wireCards() {
+  const b = $("dest-back");
+  if (b) b.onclick = () => {
+    app.outCards = null;
+    render();
+  };
+  for (const x of document.querySelectorAll("button[data-dest]")) x.onclick = () => goOut(app.outCards?.[Number(x.dataset.dest)]);
+}
+async function goOut(c) {
+  if (!c) return;
+  app.outCards = null;
+  if (c.kind === "town") return startDeal("out", "town");
+  let dest = { kind: "npc", to: c.to };
+  if (c.kind === "garden") {
+    let host = null;
+    try {
+      const r = await fetch(`d/${didFile(c.to)}`, { cache: "no-cache" });
+      if (r.ok) host = (await r.json()).did?.[c.to]?.state ?? null;
+    } catch {
+      host = null;
+    }
+    if (!host || !Number.isFinite(host.hunger) || !Number.isFinite(host.mood)) {
+      render();
+      return say(L("\u305D\u306E\u304A\u5EAD\u306F\u3044\u307E\u7559\u5B88\u306E\u3088\u3046\u3067\u3059", "That garden seems to be empty right now"));
+    }
+    dest = { kind: "garden", to: c.to, words: hostWords(host) };
+  }
+  await startDeal("out", { v: 1, dest, prompt: visitPrompt(app.box, dest) });
+}
 async function boot() {
   app.why = "";
   app.viewHtml = null;
@@ -1106,6 +1435,9 @@ async function boot() {
   loadStats().then((s) => {
     app.stats = s;
     render();
+    noticeStamps();
+    noticeRefill();
+    noticeVisitors();
   }).catch(() => {
   });
   const tick = async () => {
@@ -1117,6 +1449,9 @@ async function boot() {
   setInterval(async () => {
     try {
       app.stats = await loadStats();
+      noticeStamps();
+      noticeRefill();
+      noticeVisitors();
     } catch {
     }
   }, 5 * 6e4);
@@ -1131,7 +1466,7 @@ async function loadStats() {
     if (!old.ok) throw new Error(`garden.json ${r.status}`);
     return await old.json();
   }
-  const g = await r.json(), did = app.did ?? K.loadRec()?.did, out = { box: g.box, feed: g.feed, counts: g.counts, did: {} };
+  const g = await r.json(), did = app.did ?? K.loadRec()?.did, out = { box: g.box, feed: g.feed, counts: g.counts, delegates: g.delegates ?? {}, slots: g.slots ?? null, did: {} };
   if (did) {
     try {
       const m = await get(`d/${didFile(did)}`);

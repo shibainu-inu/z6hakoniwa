@@ -159,6 +159,7 @@ async function playRoll(secret, contract) {
   const bytes = Uint8Array.from((a + c).match(/../g), (h) => parseInt(h, 16));
   return "0x" + [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
+const playBet = (box) => box.play_bet !== false;
 async function playPayoutAt(box, lockMs, contract, secret) {
   const table = playTableAt(box, lockMs);
   if (box.play_secret_from != null && lockMs >= Number(box.play_secret_from)) {
@@ -303,6 +304,7 @@ function promptOk(box, kind, context) {
   }
   if (!c || typeof c !== "object" || typeof c.prompt !== "string") return false;
   if (kind === "out") {
+    if (c.dest != null) return visitOk(box, c);
     const f = c.facts;
     if (!f || typeof f !== "object" || MOOD_LABELS[f.metric] !== f.label || !["higher", "lower"].includes(f.dir) || !FACT_VALUE.test(String(f.value)) || !FACT_VALUE.test(String(f.base))) return false;
     return c.prompt === outPrompt(box.out_instruction, f);
@@ -310,11 +312,88 @@ function promptOk(box, kind, context) {
   const ins = kind === "sitplay" ? box.sit_play_instruction : box.meal_instruction;
   return HUNGER_WORDS.some((h) => MOOD_WORDS.some((m) => c.prompt === collapseSpace(`${ins} Mood words: ${h}, ${m}.`)));
 }
+const DID_SHAPE = /^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{40,50}$/;
+const hostWords = (st) => [st.hunger < 25 ? "starving" : st.hunger < 60 ? "hungry" : "a bit peckish", st.mood < 25 ? "gloomy" : st.mood < 60 ? "calm" : "cheerful"];
+function visitPrompt(box, dest) {
+  if (dest.kind === "garden") return collapseSpace(`${box.out_visit_lead} ${box.out_garden_place} Your host seemed ${dest.words[0]} and ${dest.words[1]}. ${box.out_visit_instruction}`);
+  const i = (box.npcs ?? []).indexOf(dest.to);
+  return collapseSpace(`${box.out_visit_lead} ${(box.out_npc_homes ?? [])[i]} ${box.out_visit_instruction}`);
+}
+function visitOk(box, c) {
+  const d = c.dest;
+  if (!d || typeof d !== "object" || !DID_SHAPE.test(String(d.to)) || c.facts != null) return false;
+  if (d.kind === "garden") {
+    if (!Array.isArray(d.words) || d.words.length !== 2 || !HUNGER_WORDS.includes(d.words[0]) || !MOOD_WORDS.includes(d.words[1]) || (box.npcs ?? []).includes(d.to)) return false;
+    if (Object.keys(d).sort().join() !== "kind,to,words") return false;
+  } else if (d.kind === "npc") {
+    const i = (box.npcs ?? []).indexOf(d.to);
+    if (i < 0 || typeof (box.out_npc_homes ?? [])[i] !== "string" || Object.keys(d).sort().join() !== "kind,to") return false;
+  } else return false;
+  return typeof box.out_visit_instruction === "string" && typeof box.out_visit_lead === "string" && c.prompt === visitPrompt(box, d);
+}
+const stampPlace = (dest) => dest && typeof dest === "object" && ["npc", "garden"].includes(dest.kind) && dest.to ? `${dest.kind}:${dest.to}` : "town";
+const STAMP_WELCOME = 2;
+function stamps(events) {
+  const got = {};
+  for (const e of [...events].sort((a, b) => a.ms - b.ms)) {
+    if (e.t === "join" && !got.welcome) {
+      got.welcome = { n: STAMP_WELCOME, first: e.ms };
+      continue;
+    }
+    if (e.t !== "out") continue;
+    const s = got[stampPlace(e.dest)] ??= { n: 0, first: e.ms };
+    s.n++;
+  }
+  return got;
+}
+function stampBook(box, did, gardens, got) {
+  const npcs = (box.npcs ?? []).filter((x, i) => typeof (box.out_npc_homes ?? [])[i] === "string");
+  const hakos = [...new Set(gardens)].filter((g) => g !== did && !(box.npcs ?? []).includes(g) && !(box.miners ?? []).includes(g)).sort();
+  const all = [{ place: "town", kind: "town", to: null }, ...npcs.map((to) => ({ place: `npc:${to}`, kind: "npc", to })), ...hakos.map((to) => ({ place: `garden:${to}`, kind: "garden", to }))];
+  const here = new Set(all.map((x) => x.place));
+  const seen = all.filter((x) => got[x.place]).map((x) => ({ ...x, ...got[x.place] })).sort((a, b) => a.first - b.first);
+  const gone = Object.entries(got).filter(([k]) => k !== "welcome" && !here.has(k)).map(([k, v]) => {
+    const [kind, to] = k.split(/:(.*)/s);
+    return { place: k, kind, to, ...v };
+  });
+  return { now: [...seen, ...all.filter((x) => !got[x.place]).map((x) => ({ ...x, n: 0, first: null }))], gone };
+}
+function outShape(box, context) {
+  let c = context;
+  if (typeof c === "string") {
+    try {
+      c = JSON.parse(c);
+    } catch {
+      c = null;
+    }
+  }
+  if (c && c.dest != null) return { visit: true, n: Number(box.out_model_lines), model: Number(box.out_model_lines), instruction: String(c.prompt ?? box.out_visit_instruction), needs: [] };
+  return { visit: false, n: Number(box.out_lines), model: Number(box.out_model_lines), instruction: box.out_instruction, needs: [[3, "{V}"], [3, "{B}"]] };
+}
+async function outCards(box, day, did, gardens, sha) {
+  const order = async (blk, list) => {
+    const ranked = [];
+    for (const x of list) ranked.push([await sha(`hakoniwa/out-card/v1|${blk}|${did}|${x}`), x]);
+    return ranked.sort((a, b) => a[0] < b[0] ? -1 : 1).map((r) => r[1]);
+  };
+  const one = async (list) => {
+    if (!list.length) return null;
+    const k = list.length, blk = Math.floor(dayNum(day) / k), pos = dayNum(day) - blk * k;
+    if (k === 2) return (await order("pair", list))[dayNum(day) % 2];
+    const o = await order(blk, list);
+    if (k > 1 && o[0] === (await order(blk - 1, list))[k - 1]) [o[0], o[1]] = [o[1], o[0]];
+    return o[pos];
+  };
+  const others = [...new Set(gardens)].filter((g2) => g2 !== did && !(box.npcs ?? []).includes(g2) && !(box.miners ?? []).includes(g2)).sort();
+  const g = await one(others), n = await one([...box.npcs ?? []].filter((x, i) => typeof (box.out_npc_homes ?? [])[i] === "string").sort());
+  return [...g ? [{ kind: "garden", to: g }] : [], ...n ? [{ kind: "npc", to: n }] : [], { kind: "town" }];
+}
 export {
   HOUR,
   HUNGER_WORDS,
   MOOD_LABELS,
   MOOD_WORDS,
+  STAMP_WELCOME,
   TAMA,
   accLevel,
   acceptKey,
@@ -324,6 +403,7 @@ export {
   fillArticle,
   graveTime,
   growthStage,
+  hostWords,
   isSit,
   jobId,
   jobKind,
@@ -332,8 +412,11 @@ export {
   localDay,
   mealPrompt,
   mergeCovers,
+  outCards,
   outPrompt,
+  outShape,
   parseTama,
+  playBet,
   playPayout,
   playPayoutAt,
   playRoll,
@@ -344,6 +427,10 @@ export {
   sitSchedule,
   sitWhy,
   splitLines,
+  stampBook,
+  stampPlace,
+  stamps,
   tamaLine,
-  toAscii
+  toAscii,
+  visitPrompt
 };

@@ -2,7 +2,7 @@ import * as tclk from "./hako_tclk.js";
 import { notes, readTail } from "./tama_net.js";
 import { pubFromDid } from "./hako_dot.js";
 import { L } from "./tama_i18n.js";
-import { jobId, tamaLine, parseTama, acceptKey, checkLines, lineStrict, mealPrompt, outPrompt, playPayoutAt, localDay, rewardOf, boxAt } from "./tama_core.js";
+import { jobId, tamaLine, parseTama, acceptKey, checkLines, lineStrict, mealPrompt, outPrompt, playPayoutAt, playBet, localDay, rewardOf, boxAt, outShape } from "./tama_core.js";
 const dealKinds = [["meal", "\u3054\u306F\u3093"], ["out", "\u304A\u3067\u304B\u3051"], ["play", "\u3042\u305D\u3076"]];
 const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
 async function acceptSigOk(did, key, text, sig) {
@@ -222,14 +222,20 @@ class Deal {
     let ok = true, say = "";
     if (this.kind === "sitplay") ok = checkLines(lines, { n: Number(b.meal_lines), maxChars: b.line_max_chars, instruction: b.sit_play_instruction, fragmentWords: b.fragment_words, strict: lineStrict(b, this.st?.lockedAt ?? Date.now()) }).ok;
     if (this.kind === "meal" || this.kind === "sit") ok = checkLines(lines, { n: Number(b.meal_lines), maxChars: b.line_max_chars, instruction: b.meal_instruction, fragmentWords: b.fragment_words, strict: lineStrict(b, this.st?.lockedAt ?? Date.now()) }).ok;
-    if (this.kind === "out") ok = checkLines(lines, { n: Number(b.out_lines), maxChars: b.line_max_chars, instruction: b.out_instruction, fragmentWords: b.fragment_words, needs: [[3, "{V}"], [3, "{B}"]], digitsOk: false, strict: lineStrict(b, this.st?.lockedAt ?? Date.now()) }).ok;
+    if (this.kind === "out") {
+      const sh = outShape(b, st.offer?.job?.context);
+      ok = checkLines(lines, { n: sh.n, maxChars: b.line_max_chars, instruction: sh.instruction, fragmentWords: b.fragment_words, needs: sh.needs, digitsOk: false, strict: lineStrict(b, this.st?.lockedAt ?? Date.now()) }).ok;
+    }
     if (!ok) {
       this.set("ng", { done: true, locked: false, lines });
       this.note(L("\u5C4A\u3044\u305F\u3082\u306E\u304C\u6C7A\u307E\u308A\u306B\u5408\u308F\u306A\u304B\u3063\u305F\u306E\u3067\u3001\u6210\u7ACB\u3057\u307E\u305B\u3093\u3067\u3057\u305F\u3002PAPER \u306F\u52D5\u3044\u3066\u3044\u307E\u305B\u3093", "What arrived didn't meet the rules, so the deal didn't settle. No PAPER moved."));
       return;
     }
     let delta = -Number(st.amount);
-    if (this.kind === "play") {
+    if (this.kind === "play" && !playBet(boxAt(b, st.at ?? ms))) {
+      const who = `HAKO \u2026${String(st.payee ?? "").slice(-4)}`;
+      say = L(`${who} \u3068\u3042\u305D\u3073\u307E\u3057\u305F`, `Played with ${who}`);
+    } else if (this.kind === "play") {
       const back = await playPayoutAt(b, st.at, st.contract, secret);
       delta += back;
       say = back > st.amount ? L(`\u52DD\u3063\u305F\uFF01 ${back} $PAPER \u623B\u3063\u3066\u304D\u305F`, `You won! ${back} $PAPER came back`) : back === st.amount ? L(`\u5F15\u304D\u5206\u3051\u3002${back} $PAPER \u623B\u3063\u3066\u304D\u305F`, `A draw. ${back} $PAPER came back`) : L(`\u8CA0\u3051\u3061\u3083\u3063\u305F\u3002${back} $PAPER \u3060\u3051\u623B\u3063\u3066\u304D\u305F`, `You lost. Only ${back} $PAPER came back`);
@@ -237,7 +243,8 @@ class Deal {
     if (this.kind === "meal" || this.kind === "sit" || this.kind === "sitplay") say = lines?.[0] ?? "";
     if (this.kind === "out") {
       const nth = (this.app.st?.outsToday ?? 0) + 1;
-      say = L(`\u8A18\u4E8B\u304C\u3067\u304D\u307E\u3057\u305F\u3002\u307B\u3046\u3073 ${rewardOf(b, nth)} $PAPER\uFF08\u4ECA\u65E5 ${nth} \u56DE\u76EE\uFF09\u306F\u3001\u5E33\u7C3F\u4FC2\u304C\u78BA\u304B\u3081\u3066\u304B\u3089\u5C4A\u304D\u307E\u3059`, `The report is done. The reward of ${rewardOf(b, nth)} $PAPER (outing #${nth} today) arrives after the ledger keeper checks it.`);
+      const r = rewardOf(boxAt(b, st.at ?? ms), nth);
+      say = r > 0 ? L(`\u8A18\u4E8B\u304C\u3067\u304D\u307E\u3057\u305F\u3002\u307B\u3046\u3073 ${r} $PAPER\uFF08\u4ECA\u65E5 ${nth} \u56DE\u76EE\uFF09\u306F\u3001\u5E33\u7C3F\u4FC2\u304C\u78BA\u304B\u3081\u3066\u304B\u3089\u5C4A\u304D\u307E\u3059`, `The report is done. The reward of ${r} $PAPER (outing #${nth} today) arrives after the ledger keeper checks it.`) : L("\u8A18\u4E8B\u304C\u3067\u304D\u307E\u3057\u305F", "The report is ready");
     }
     this.set("settled", { done: true, locked: false, lines, settledAt: ms, day: localDay(ms, b) });
     this.onEvent({ type: "settled", contract: st.contract, ms, delta, say, lines });
