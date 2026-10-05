@@ -1,5 +1,6 @@
 import { spriteRows, iconRows, inside, paint, THEMES } from "./tama_sprite.js";
 import { L } from "./tama_i18n.js";
+import { boxAt } from "./tama_core.js";
 const FRAME = { bg: "#f4f1ea", ink: "#16151c", sub: "#55525e", edge: "#c9a181" };
 function lifetime(events, box, localDay) {
   const n = { meals: 0, outs: 0, plays: 0, days: 0, rebirths: 0, earned: 0 };
@@ -30,12 +31,12 @@ function lifetime(events, box, localDay) {
 function peakPaper(events, box) {
   let bal = 0, peak = 0;
   for (const e of [...events].sort((a, b) => a.ms - b.ms)) {
-    const sit = !!e.sit;
-    if (e.t === "join") bal += Number(box.initial_paper);
-    else if (e.t === "meal") bal -= Number(sit ? box.sit_price : box.meal_price);
-    else if (e.t === "out") bal += Number(e.reward ?? 0) - Number(box.out_price);
-    else if (e.t === "play") bal += sit ? -Number(box.sit_play_price) : Number(e.payout ?? 0) - Number(box.play_stake);
-    else if (e.t === "reborn") bal -= Number(e.fee ?? box.reborn_price ?? 0);
+    const sit = !!e.sit, b = boxAt(box, e.ms);
+    if (e.t === "join") bal += Number(e.initial ?? b.initial_paper);
+    else if (e.t === "meal") bal -= Number(e.price ?? (sit ? b.sit_price : b.meal_price));
+    else if (e.t === "out") bal += Number(e.reward ?? 0) - Number(e.price ?? b.out_price);
+    else if (e.t === "play") bal += (sit ? 0 : Number(e.payout ?? 0)) - Number(e.price ?? (sit ? b.sit_play_price : b.play_stake));
+    else if (e.t === "reborn") bal -= Number(e.fee ?? b.reborn_price ?? 0);
     peak = Math.max(peak, bal);
   }
   return Math.round(peak * 100) / 100;

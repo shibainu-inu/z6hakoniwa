@@ -69,6 +69,13 @@ function loadRec() {
     return null;
   }
 }
+function dropRec() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+  }
+  forgetTab();
+}
 function saveRec(rec) {
   try {
     localStorage.setItem(KEY, JSON.stringify(rec));
@@ -146,6 +153,7 @@ export {
   cleanName,
   didOf,
   downloadRec,
+  dropRec,
   forgetTab,
   isKeyFile,
   loadRec,

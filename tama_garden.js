@@ -2,7 +2,7 @@ import { faceSvg } from "./tama_sprite.js";
 import { L } from "./tama_i18n.js";
 import { storyHtml, howHtml, watchPages } from "./tama_book.js";
 const shown = {};
-import { localDay, rewardOf } from "./tama_core.js";
+import { localDay, rewardOf, boxAt } from "./tama_core.js";
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
 const short = (did) => "\u2026" + String(did).slice(-8);
@@ -88,8 +88,9 @@ function renderGarden(stats, moods, box, F = null) {
     watchPages(el);
   };
   if (box) {
-    put("story", storyHtml(box, moods, F));
-    put("how", howHtml(box, F));
+    const b = boxAt(box, Date.now());
+    put("story", storyHtml(b, moods, F));
+    put("how", howHtml(b, F));
   }
   const s = $("status");
   if (s) s.innerHTML = `<span><span class="live-dot"></span>live</span><span>HAKO ${fmt(hakos)}</span><span>${L("\u5E33\u7C3F\u4FC2", "Ledger")} ${esc(String(stats?.box?.generated ?? "-").replace("T", " ").slice(0, 16))} UTC</span><span>${town()} ${moods?.hour ? esc(moods.hour.slice(11, 13)) + L("\u6642\u53F0", ":00") : "-"} \xB7 ${moods?.rows ? fmt(moods.rows) + L(" \u884C", " lines") : "-"}</span><span>${esc(box?.version ?? "")}</span>`;

@@ -36,7 +36,7 @@ function storyHtml(box, moods, F) {
     L("\u304A\u4E16\u8A71\u3092\u3057\u3066\u3044\u308B\u3068\u5375\u304B\u3089\u5B50\u304C\u751F\u307E\u308C\u3001\u3084\u304C\u3066\u7BB1\u306E\u304B\u305F\u3061\u306E HAKO \u306B\u80B2\u3061\u307E\u3059\u3002", "Look after it and a little one hatches, then grows into a box-shaped HAKO.")
   ) + page(
     "s-day",
-    sp("bowl", 11, art(BOWL)) + hako("trip", 15) + sp("sign", 11, art(SIGN)) + sp("note", 9, art(PAPER)),
+    sp("bowl", 11, art(BOWL)) + hako("trip", 15) + sp("sign", 11, art(SIGN)) + sp("rep", 9, art(PAPER)),
     L("HAKO \u306F\u3054\u306F\u3093\u3092\u98DF\u3079\u3001\u8857\u3078\u304A\u3067\u304B\u3051\u3057\u3066\u3001\u898B\u3066\u304D\u305F\u3053\u3068\u3092\u77ED\u3044\u8A18\u4E8B\u306B\u3057\u3066\u6301\u3061\u5E30\u308A\u307E\u3059\u3002", "A HAKO eats, goes out to the town, and brings back a short report of what it saw.")
   ) + page(
     "s-real",
@@ -65,7 +65,7 @@ function howHtml(box, F) {
     )
   ) + page(
     "h-out",
-    hako("trip", 15) + sp("sign", 11, art(SIGN)) + sp("note", 9, art(PAPER)) + `<span class="tag t3 mono">+${rewards[0]}</span>`,
+    hako("trip", 15) + sp("sign", 11, art(SIGN)) + sp("rep", 9, art(PAPER)) + `<span class="tag t3 mono">+${rewards[0]}</span>`,
     L(
       `<b>\u304A\u3067\u304B\u3051</b>\uFF08${fmt(box.out_price)} $PAPER\uFF09\u306F\u3001\u304A\u306A\u304B\u304C ${box.out_min_hunger} \u4EE5\u4E0A\u306E\u3068\u304D 1 \u65E5 ${box.out_per_day} \u56DE\u307E\u3067\u3002\u8857\u306E\u3088\u3046\u3059\u3092\u8A18\u4E8B\u306B\u3057\u3066\u3001\u307B\u3046\u3073\u304C ${rewards.join("\u30FB")} $PAPER \u5C4A\u304D\u307E\u3059\u3002`,
       `<b>Go out</b> (${fmt(box.out_price)} $PAPER) needs a tummy of ${box.out_min_hunger} or more, up to ${box.out_per_day} times a day. It writes a report on the town and earns ${rewards.join(" \xB7 ")} $PAPER.`
@@ -84,7 +84,14 @@ function howHtml(box, F) {
       `\u304A\u306A\u304B\u304C 0 \u306E\u307E\u307E ${box.grave_after_hours} \u6642\u9593\u305F\u3064\u3068\u304A\u5893\u306B\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306F ${fmt(box.reborn_price)} $PAPER \u3067\u3001\u5375\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\u3002`,
       `If its tummy stays at 0 for ${box.grave_after_hours} hours, it ends up in a grave. Rebirth costs ${fmt(box.reborn_price)} $PAPER and starts over from an egg.`
     )
-  ) + (box.sit_enabled ? page(
+  ) + (box.slot_grave_hours != null && box.max_hakos != null ? page(
+    "h-slot",
+    sp("tomb", 12, art(TOMB)) + sp("clock", 9, item(F, "clock")) + `<b class="ar a3">\u2192</b>` + sp("again", 12, castSvg("egg", 4)),
+    L(
+      `\u7BB1\u5EAD\u306B\u3044\u3089\u308C\u308B HAKO \u306F ${box.max_hakos} \u5339\u307E\u3067\u3067\u3059\u3002\u304A\u5893\u306E\u307E\u307E ${fmt(box.slot_grave_hours / 24)} \u65E5\u305F\u3064\u304B\u3001\u751F\u307E\u308C\u3066\u304B\u3089 ${box.slot_nomeal_hours} \u6642\u9593\u3054\u306F\u3093\u3092\u4E00\u5EA6\u3082\u98DF\u3079\u306A\u3044\u3068\u3001HAKO \u306F\u7BB1\u5EAD\u3092\u96E2\u308C\u3001\u6B21\u306E\u4EBA\u306B\u5834\u6240\u3092\u3086\u305A\u308A\u307E\u3059\u3002`,
+      `The garden holds up to ${box.max_hakos} HAKOs. If a HAKO stays in a grave for ${fmt(box.slot_grave_hours / 24)} days, or never eats in its first ${box.slot_nomeal_hours} hours, it leaves the garden and makes room for someone new.`
+    )
+  ) : "") + (box.sit_enabled ? page(
     "h-sit",
     face("s1", CROWD[2], 11) + hako("home", 15) + sp("bowl", 11, art(BOWL)),
     L(

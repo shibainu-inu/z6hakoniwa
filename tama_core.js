@@ -25,28 +25,36 @@ function graveTime(start, need, covers) {
   }
   return t + left;
 }
+function boxAt(box, ms) {
+  const ch = box.changes ?? [];
+  if (!ch.length) return box;
+  const out = { ...box };
+  for (const c of [...ch].sort((a, b) => Number(a.from) - Number(b.from))) if (Number(c.from) <= ms) Object.assign(out, c.set);
+  return out;
+}
 function lifeState(events, now, box) {
   const ev = events.map((e, i) => ({ ...e, i })).sort((a, b) => a.ms - b.ms || a.i - b.i);
-  const hr = Number(box.hunger_per_hour), mr = Number(box.mood_per_hour);
-  const hMax = Number(box.hunger_max), mMax = Number(box.mood_max);
-  const graveMs = Number(box.grave_after_hours) * HOUR;
   const covers = mergeCovers(ev.filter((e) => e.t === "sit").map((e) => [Number(e.ms), Number(e.until)]));
   let s = null;
   let rebirths = 0;
-  const fresh = (ms, reborn = false) => ({
-    bornAt: ms,
-    hunger: Number(reborn ? box.reborn_hunger ?? box.hunger_start : box.hunger_start),
-    mood: Number(box.mood_start),
-    at: ms,
-    zeroSince: null,
-    grave: false,
-    graveAt: null,
-    days: new Set(),
-    cares: 0
-  });
+  const fresh = (ms, reborn = false) => {
+    const b = boxAt(box, ms);
+    return {
+      bornAt: ms,
+      hunger: Number(reborn ? b.reborn_hunger ?? b.hunger_start : b.hunger_start),
+      mood: Number(b.mood_start),
+      at: ms,
+      zeroSince: null,
+      grave: false,
+      graveAt: null,
+      days: new Set(),
+      cares: 0
+    };
+  };
   const advance = (t) => {
     if (!s || s.grave || t <= s.at) return;
     const dtH = (t - s.at) / HOUR;
+    const b = boxAt(box, s.at), hr = Number(b.hunger_per_hour), mr = Number(b.mood_per_hour);
     if (s.zeroSince === null) {
       const h = s.hunger - hr * dtH;
       if (h <= 0) {
@@ -56,7 +64,7 @@ function lifeState(events, now, box) {
     }
     s.mood = Math.max(0, s.mood - mr * dtH);
     if (s.zeroSince !== null) {
-      const g = graveTime(s.zeroSince, graveMs, covers);
+      const g = graveTime(s.zeroSince, Number(boxAt(box, s.zeroSince).grave_after_hours) * HOUR, covers);
       if (t >= g) {
         s.grave = true;
         s.graveAt = g;
@@ -79,11 +87,12 @@ function lifeState(events, now, box) {
       continue;
     }
     if (s.grave) continue;
-    if (e.t === "meal") s.hunger = clamp(s.hunger + Number(box.meal_fill), 0, hMax);
-    else if (e.t === "out") s.hunger = clamp(s.hunger - Number(box.out_hunger), 0, hMax);
+    const b = boxAt(box, e.ms), hMax = Number(b.hunger_max), mMax = Number(b.mood_max);
+    if (e.t === "meal") s.hunger = clamp(s.hunger + Number(b.meal_fill), 0, hMax);
+    else if (e.t === "out") s.hunger = clamp(s.hunger - Number(b.out_hunger), 0, hMax);
     else if (e.t === "play") {
-      s.hunger = clamp(s.hunger - Number(box.play_hunger), 0, hMax);
-      s.mood = clamp(s.mood + Number(box.play_mood), 0, mMax);
+      s.hunger = clamp(s.hunger - Number(b.play_hunger), 0, hMax);
+      s.mood = clamp(s.mood + Number(b.play_mood), 0, mMax);
     } else continue;
     s.zeroSince = s.hunger > 0 ? null : s.zeroSince ?? e.ms;
     if (e.t === "out") continue;
@@ -299,6 +308,7 @@ export {
   TAMA,
   accLevel,
   acceptKey,
+  boxAt,
   checkLines,
   collapseSpace,
   fillArticle,

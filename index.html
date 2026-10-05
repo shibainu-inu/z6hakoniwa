@@ -158,6 +158,10 @@ form.keyf{margin:0}
 /* 記事・ひとこと */
 .article{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:10px 0;background:var(--soft)}
 .article h3{margin:0 0 4px;font-size:16px;font-weight:800}.article p{margin:2px 0;font-size:14px;color:var(--muted)}
+details.article summary{list-style:none;cursor:pointer;display:block}details.article summary::-webkit-details-marker{display:none}
+details.article .more{display:inline-block;margin-top:4px;font-size:13px;font-weight:700;color:var(--accent)}details.article .cl,details.article[open] .rd{display:none}details.article[open] .cl{display:inline}
+details.article summary h3{margin:0;font-family:Georgia,"Times New Roman",serif;letter-spacing:.01em}
+details.article[open]{background:var(--card)}details.article[open] summary{border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:6px}details.article .meta{font-size:11px;color:var(--dim);margin-bottom:6px}
 .menu{margin:0;padding:0 0 0 1.2em;font-size:14px}.menu li{margin:2px 0}
 .bubble{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:6px 12px;margin:4px 0;font-size:14px}
 /* 部屋 */
@@ -240,10 +244,10 @@ body[data-tab=garden] #story,body[data-tab=garden] #how,body[data-tab=story] #li
 .page.in.s-grow .g3 .mv{animation:popin .6s 2.8s both,hop2 2.6s 3.6s infinite}
 /* 4 ごはん → おでかけ → 記事 */
 .s-day .bowl,.h-out .bowl{left:7%}.s-day .sign,.h-out .sign{left:82%}.s-day .trip{left:21%}.h-out .trip{left:16%}
-.s-day .note,.h-out .note{left:83%;bottom:60%}.s-day .note .mv,.h-out .note .mv{opacity:0}
+.s-day .rep,.h-out .rep{left:83%;bottom:60%}.s-day .rep .mv,.h-out .rep .mv{opacity:0}
 .page.in.s-day .trip{animation:trip 9s ease-in-out infinite}.page.in.h-out .trip{animation:trip2 7s ease-in-out infinite}
 .page.in.s-day .trip .mv,.page.in.h-out .trip .mv{animation:step .8s ease-in-out infinite}
-.page.in.s-day .note .mv{animation:note 9s ease-in-out infinite}.page.in.h-out .note .mv{animation:note 7s ease-in-out infinite}
+.page.in.s-day .rep .mv{animation:note 9s ease-in-out infinite}.page.in.h-out .rep .mv{animation:note 7s ease-in-out infinite}
 .h-out .t3{left:60%;top:12%}.page.in.h-out .t3{animation:note 7s ease-in-out infinite}
 /* 5 街は実在する */
 .s-real .c0{left:5%}.s-real .c1{left:28%}.s-real .c2{left:51%}.s-real .c3{left:74%}
@@ -256,6 +260,7 @@ body[data-tab=garden] #story,body[data-tab=garden] #how,body[data-tab=story] #li
 /* 6 お墓と生まれ変わり */
 .s-grave .tomb,.h-grave .tomb{left:20%}.s-grave .ghost,.h-grave .ghost{left:35%;bottom:40%;opacity:.8}.s-grave .a3,.h-grave .a3{left:53%}.s-grave .again,.h-grave .again{left:66%}
 .s-grave .again .mv,.h-grave .again .mv{opacity:0}
+.h-slot .tomb{left:14%}.h-slot .clock{left:34%;bottom:46%}.h-slot .a3{left:53%}.h-slot .again{left:66%}
 .page.in .ghost .mv{animation:drift 7s ease-in-out infinite}
 .page.in .a3{animation:fadein .6s 1.2s both}
 .page.in .again .mv{animation:popin .7s 2s both,rock-rest 5s 2.8s infinite}

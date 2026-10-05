@@ -1,4 +1,4 @@
-import { lifeState, localDay, tamaLine, fillArticle, rewardOf, sitSchedule, sitWhy, HOUR } from "./tama_core.js";
+import { lifeState, localDay, tamaLine, fillArticle, rewardOf, sitSchedule, sitWhy, HOUR, boxAt } from "./tama_core.js";
 import { spriteSvg, spriteRows } from "./tama_sprite.js";
 import { L, getLang, setLang } from "./tama_i18n.js";
 import { setVenue, makeSigner, readTail } from "./tama_net.js";
@@ -12,6 +12,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
 const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
 const app = { stats: null, box: null, did: null, priv: null, signer: null, motion: null, deals: {}, sits: [] };
+const cur = () => app.box ? boxAt(app.box, Date.now()) : {};
 const LKEY = (did) => `tama_local_v1:${did}`;
 function loadLocal(did) {
   try {
@@ -45,7 +46,7 @@ function merged(stats, did) {
   const keys = new Set(keep.map((e) => e.contract ?? `${e.t}-${e.ms}`));
   let balance = d ? Number(d.balance) : 0;
   for (const x of loc.deltas) if (keys.has(x.key)) balance += x.delta;
-  if (!d && keep.some((e) => e.t === "join")) balance += Number(app.box.initial_paper);
+  if (!d && keep.some((e) => e.t === "join")) balance += Number(cur().initial_paper);
   for (const x of [...Object.values(app.deals), ...app.sits ?? []]) if (x.st?.locked && !x.st?.done) balance -= Number(x.st.amount ?? 0);
   return { events: [...foldEv, ...keep], balance, fromFold: !!d, fold: d ?? null };
 }
@@ -411,6 +412,7 @@ function render() {
   renderChrome();
   movingNotice();
   if (!app.did) return renderEgg();
+  if (app.stats?.did?.[app.did]?.state?.released) return renderReleased();
   if (!app.priv) return renderUnlock();
   const m = merged(app.stats, app.did);
   const st = lifeState(m.events, Date.now(), app.box);
@@ -418,7 +420,7 @@ function render() {
   app.balance = m.balance;
   if (app.why && app.whyAt && Date.now() - app.whyAt > 9e3) app.why = "";
   if (!st.born) return renderEgg();
-  const fee = Number(app.box.reborn_price ?? 0);
+  const fee = Number(cur().reborn_price ?? 0);
   const graveNote = st.grave ? `<p class="note">` + L(
     `\u304A\u306A\u304B\u304C\u7A7A\u3063\u307D\u306E\u307E\u307E ${app.box.grave_after_hours} \u6642\u9593\u304C\u305F\u3063\u3066\u3001\u304A\u5893\u306B\u306A\u308A\u307E\u3057\u305F\u3002\u751F\u307E\u308C\u5909\u308F\u308B\u3068\u3001\u540C\u3058 HAKO \u304C\u3082\u3046\u4E00\u5EA6\u306F\u3058\u3081\u304B\u3089\u3084\u308A\u76F4\u3057\u307E\u3059\uFF08\u90E8\u5C4B\u3068\u3053\u308C\u307E\u3067\u306E\u8A18\u9332\u306F\u305D\u306E\u307E\u307E\uFF09\u3002\u751F\u307E\u308C\u5909\u308F\u308A\u306B\u306F ${fmt(fee)} $PAPER \u304B\u304B\u308A\u307E\u3059${m.balance < fee ? `\uFF08\u3044\u307E\u306F\u8DB3\u308A\u306A\u3044\u306E\u3067\u3001\u8CA1\u5E03\u304C 0 \u306B\u306A\u3063\u3066\u751F\u307E\u308C\u5909\u308F\u308A\u307E\u3059\uFF09` : ""}\u3002\u304A\u5893\u306E\u9593\u306F\u3001\u304A\u3067\u304B\u3051\u3068\u3042\u305D\u3076\u306F\u3067\u304D\u307E\u305B\u3093\u3002`,
     `Its tummy stayed empty for ${app.box.grave_after_hours} hours, so it is resting in a grave. When it is reborn, the same HAKO starts over from an egg (the room and its record stay). Rebirth costs ${fmt(fee)} $PAPER${m.balance < fee ? ` (you don't have enough now, so your wallet will go to 0)` : ""}. While it rests, it can't go out or play.`
@@ -456,7 +458,7 @@ function render() {
   if (app.viewHtml === html && $("stage")) {
     showOps();
     setMotion(motionOf(st));
-    renderSaid(m.fold);
+    renderSaid(m);
     return;
   }
   app.nmFocus = document.activeElement?.id === "nm";
@@ -480,7 +482,7 @@ function render() {
     }
   };
   for (const b of document.querySelectorAll("button[data-kind]")) b.onclick = () => startDeal(b.dataset.kind);
-  renderSaid(m.fold);
+  renderSaid(m);
 }
 function nameHtml() {
   const rec = K.loadRec(), named = rec?.did === app.did && K.cleanName(rec.name);
@@ -579,7 +581,7 @@ function sitStart() {
 }
 const sitFits = (n, p, s) => sitSchedule(app.box, s.t0, n, p, s.first).every((x) => !sitWhy(app.box, { job: { context: JSON.stringify({ at: x.at }) }, claimByMs: x.claimByMs, refundAfterMs: x.refundAfterMs }, Date.now()));
 function sitHtml(st, m) {
-  if (!app.box?.sit_price) return "";
+  if (!cur().sit_price) return "";
   const live2 = sitLive();
   if (!app.box.sit_enabled && !live2.length && !(st.sitUntil > Date.now())) return "";
   if (live2.length && sitPending()) return `<div class="sit"><p class="small">${L("\u304A\u9858\u3044\u3057\u3066\u3044\u307E\u3059\u2026\uFF081\u301C2 \u5206\u3002\u3053\u306E\u307E\u307E\u958B\u3044\u3066\u304A\u3044\u3066\u304F\u3060\u3055\u3044\uFF09", "Booking the sitter\u2026 (1\u20132 minutes. Please keep this open.)")}</p></div>`;
@@ -590,7 +592,7 @@ function sitHtml(st, m) {
     const last = ats.length ? ats[ats.length - 1] : null;
     const done = (d) => d.st?.stage === "settled", cnt = (k, f = () => true) => app.sits.filter((d) => d.kind === k && d.st && !["refunded", "ng", "offer_failed"].includes(d.st.stage) && f(d)).length;
     const nm = cnt("sit"), np = cnt("sitplay"), cm = cnt("sit", done), cp = cnt("sitplay", done);
-    head = `<p class="small"><b>${L("\u304A\u308B\u3059\u3070\u3093\u4E2D", "Sitter on duty")}</b>${last ? L(`\uFF08${whenShort(last)} \u307E\u3067\uFF09`, ` (until ${whenShort(last)})`) : ""}\u3000` + L(`\u3054\u306F\u3093 ${cm}/${nm}${np ? `\u30FB\u3042\u305D\u3076 ${cp}/${np}` : ""}`, `meals ${cm}/${nm}${np ? `, plays ${cp}/${np}` : ""}`) + `</p>`;
+    head = `<p class="small"><b>${L("\u30B7\u30C3\u30BF\u30FC\u304C\u304A\u4E16\u8A71\u4E2D", "Sitter on duty")}</b>${last ? L(`\uFF08${whenShort(last)} \u307E\u3067\uFF09`, ` (until ${whenShort(last)})`) : ""}\u3000` + L(`\u3054\u306F\u3093 ${cm}/${nm}${np ? `\u30FB\u3042\u305D\u3076 ${cp}/${np}` : ""}`, `meals ${cm}/${nm}${np ? `, plays ${cp}/${np}` : ""}`) + `</p>`;
     const soon = s.ext && s.t0 - Date.now() < Number(app.box.sit_every_hours) * HOUR;
     if (!app.box.sit_enabled || st.grave || !soon) return `<div class="sit">${head}</div>`;
   }
@@ -602,7 +604,7 @@ function sitHtml(st, m) {
   const n = Math.min(Math.max(1, Number(app.sitDays ?? Math.min(3, dmax))), dmax);
   const pmax = Math.max(0, ...Array.from({ length: sitPlaysMax(n) + 1 }, (_, j) => j).filter((j) => sitFits(n, j, s)));
   const p = Math.min(Math.max(0, Number(app.sitPlays ?? Math.min(1, pmax))), pmax);
-  const price = Number(app.box.sit_price), pprice = Number(app.box.sit_play_price ?? 0), total = n * (price + p * pprice), lack = m.balance < total;
+  const price = Number(cur().sit_price), pprice = Number(cur().sit_play_price ?? 0), total = n * (price + p * pprice), lack = m.balance < total;
   const opts = Array.from({ length: dmax }, (_, i) => `<option value="${i + 1}"${i + 1 === n ? " selected" : ""}>${L(`${i + 1} \u65E5`, `${i + 1} day${i ? "s" : ""}`)}</option>`).join("");
   const popts = Array.from({ length: pmax + 1 }, (_, i) => `<option value="${i}"${i === p ? " selected" : ""}>${L(i ? `${i} \u56DE` : "\u3042\u305D\u3070\u306A\u3044", ["None", "Once", "Twice"][i] ?? `${i} times`)}</option>`).join("");
   return `<div class="sit">${head}<form class="sitf" id="sitf">
@@ -646,7 +648,7 @@ async function bookSit(n, p = 0) {
   const s = sitStart();
   p = Math.min(Math.max(0, p), sitPlaysMax(n));
   if (!sitFits(n, p, s)) return say(L("\u305D\u306E\u65E5\u6570\u3067\u306F\u983C\u3081\u307E\u305B\u3093", "That many days can't be booked"));
-  if (m.balance < n * (Number(app.box.sit_price) + p * Number(app.box.sit_play_price ?? 0))) return say(L("PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093", "Not enough PAPER"));
+  if (m.balance < n * (Number(cur().sit_price) + p * Number(cur().sit_play_price ?? 0))) return say(L("PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093", "Not enough PAPER"));
   const plan = sitSchedule(app.box, s.t0, n, p, s.first);
   plan.sort((a, b) => (a.j > 0) - (b.j > 0) || a.at - b.at);
   const slots = plan.map((x) => x.j ? `${s.t0}-${x.k}-p${x.j}` : `${s.t0}-${x.k}`);
@@ -674,8 +676,8 @@ async function bookSit(n, p = 0) {
   render();
 }
 function actionsHtml(st, m) {
-  if (st.grave) return `<button class="btn" id="reborn" style="--c:var(--accent)"><span class="dot" style="background:var(--accent)"></span>${L("\u751F\u307E\u308C\u5909\u308F\u308B", "Be reborn")} <span class="price">${fmt(Math.min(Number(app.box.reborn_price ?? 0), Math.max(0, m.balance)))} $PAPER</span></button>`;
-  const price = { meal: app.box.meal_price, out: app.box.out_price, play: app.box.play_stake };
+  if (st.grave) return `<button class="btn" id="reborn" style="--c:var(--accent)"><span class="dot" style="background:var(--accent)"></span>${L("\u751F\u307E\u308C\u5909\u308F\u308B", "Be reborn")} <span class="price">${fmt(Math.min(Number(cur().reborn_price ?? 0), Math.max(0, m.balance)))} $PAPER</span></button>`;
+  const price = { meal: cur().meal_price, out: cur().out_price, play: cur().play_stake };
   return dealKinds.map(([k, label]) => {
     const why = actionBlock(k, st, m);
     return `<button class="btn${why ? " off" : ""}" data-kind="${k}" style="--c:${DOT[k]}" ${why ? `aria-disabled="true" title="${esc(why)}"` : ""}><span class="dot" style="background:${DOT[k]}"></span>${L(label, KIND_EN[k])} <span class="price">${fmt(price[k])} $PAPER</span></button>`;
@@ -840,7 +842,7 @@ function playsToday(m) {
 function actionBlock(kind, st, m) {
   const x = app.deals[kind];
   if (x?.busy()) return x.st.gaveUp ? L("PAPER \u304C\u623B\u308B\u306E\u3092\u5F85\u3063\u3066\u3044\u307E\u3059", "Waiting for the PAPER to come back") : L("\u3044\u307E\u306F\u305D\u306E\u9014\u4E2D\u3067\u3059", "Already in progress");
-  const price = { meal: app.box.meal_price, out: app.box.out_price, play: app.box.play_stake }[kind];
+  const price = { meal: cur().meal_price, out: cur().out_price, play: cur().play_stake }[kind];
   if (st.grave) return L("\u304A\u5893\u306E\u9593\u306F\u3067\u304D\u307E\u305B\u3093", "Not while it rests in the grave");
   if (m.balance < Number(price)) return L("PAPER \u304C\u8DB3\u308A\u307E\u305B\u3093", "Not enough PAPER");
   if (kind === "out" && st.outsToday >= Number(app.box.out_per_day)) return L(`\u304A\u3067\u304B\u3051\u306F 1 \u65E5 ${app.box.out_per_day} \u56DE\u307E\u3067\u3067\u3059`, `Outings are limited to ${app.box.out_per_day} a day`);
@@ -849,22 +851,51 @@ function actionBlock(kind, st, m) {
   if (kind === "play" && !(app.box.npcs ?? []).length) return L("\u3042\u305D\u3073\u76F8\u624B\u304C\u307E\u3060\u3044\u307E\u305B\u3093", "No playmates yet");
   return null;
 }
-function renderSaid(fold) {
+function renderSaid(m) {
   const el = $("said");
   if (!el) return;
-  const meals = (fold?.meals ?? []).filter((x) => x.menu).reverse();
-  if (app.lastSay && app.lastSayMenu && !meals.some((x) => x.line === app.lastSay)) meals.unshift({ line: app.lastSay });
-  meals.splice(10);
+  const fold = m?.fold;
+  const today = localDay(Date.now(), app.box);
+  const plays = (m?.events ?? []).filter((e) => e.t === "play" && !e.sit && e.payout != null && localDay(e.ms, app.box) === today).sort((a, b) => b.ms - a.ms);
+  const hm = (ms) => new Date(ms).toLocaleTimeString(getLang() === "ja" ? "ja-JP" : "en-US", { hour: "2-digit", minute: "2-digit" });
   let outs = (fold?.outs ?? []).slice(-1);
   if (app.lastArticle && !(fold?.outs ?? []).some((o) => o.contract === app.lastArticle.contract)) outs = [app.lastArticle];
   const h = [
-    ...outs.map((o) => `<article class="article">${o.lines.map((l, i) => i === 0 ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join("")}</article>`),
-    ...meals.length ? [`<p class="label" style="margin-top:12px">${L("\u3053\u308C\u307E\u3067\u98DF\u3079\u305F\u3054\u98EF", "Meals so far")}</p><ul class="menu">${meals.map((x) => `<li>${esc(x.line)}</li>`).join("")}</ul>`] : []
+    ...outs.map((o) => `<details class="article" data-c="${esc(o.contract ?? "")}"${app.articleOpen === o.contract ? " open" : ""}><summary><h3>${esc(o.lines[0] ?? "")}</h3><span class="more"><span class="rd">${L("\u8A18\u4E8B\u3092\u8AAD\u3080 \u25BE", "Read the report \u25BE")}</span><span class="cl">${L("\u9589\u3058\u308B \u25B4", "Close \u25B4")}</span></span></summary>
+      ${o.day ? `<p class="meta mono">${esc(o.day)}${o.nth ? L(` \xB7 \u4ECA\u65E5 ${o.nth} \u56DE\u76EE`, ` \xB7 outing #${o.nth}`) : ""}</p>` : ""}${o.lines.slice(1).map((l) => `<p>${esc(l)}</p>`).join("")}</details>`),
+    ...plays.length ? [`<p class="label" style="margin-top:12px">${L("\u4ECA\u65E5\u306E\u3042\u305D\u3076", "Today's plays")}</p><ul class="menu">${plays.map((e) => {
+      const stake = Number(e.price ?? cur().play_stake), back = Number(e.payout), d = back - stake;
+      return `<li><span class="mono">${hm(e.ms)}</span>\u3000${fmt(stake)} \u2192 ${fmt(back)} $PAPER <span class="${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${fmt(d)}</span></li>`;
+    }).join("")}</ul>`] : []
   ].join("");
   if (app.saidHtml !== h || h && !el.firstChild) {
     el.innerHTML = h;
     app.saidHtml = h;
+    for (const d of el.querySelectorAll("details.article")) d.ontoggle = () => {
+      app.articleOpen = d.open ? d.dataset.c : null;
+      app.saidHtml = null;
+    };
   }
+}
+function renderReleased() {
+  const h = `
+    <section class="card" id="me">
+      <div class="stage plain short"><div class="egg">${spriteSvg(null, "egg", 5)}</div></div>
+      <h2>${L("\u3053\u306E HAKO \u306F\u7BB1\u5EAD\u3092\u96E2\u308C\u307E\u3057\u305F", "This HAKO has left the garden")}</h2>
+      <div class="actions"><button class="btn" id="anew">${L("\u65B0\u3057\u3044 HAKO \u3092\u8FCE\u3048\u308B", "Welcome a new HAKO")}</button></div>
+    </section>`;
+  if (app.viewHtml === h) return;
+  $("view").innerHTML = h;
+  app.viewHtml = h;
+  $("anew").onclick = () => {
+    if (!confirm(L("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u304B\u3089\u4ECA\u306E\u9375\u3092\u6D88\u3057\u3066\u3001\u65B0\u3057\u3044 HAKO \u3092\u8FCE\u3048\u307E\u3059\u3002\u3088\u308D\u3057\u3044\u3067\u3059\u304B\uFF1F", "This removes the current key from this browser and welcomes a new HAKO. Continue?"))) return;
+    K.dropRec();
+    app.did = null;
+    app.priv = null;
+    app.signer = null;
+    app.viewHtml = null;
+    render();
+  };
 }
 const isFull = () => app.box.max_hakos != null && Number(app.stats?.box?.hakos ?? 0) >= Number(app.box.max_hakos);
 const isClosing = () => location.hostname.endsWith("github.io");
@@ -887,7 +918,7 @@ function renderEgg() {
       <p class="label" style="margin-top:14px">NEW HAKO</p>
       <h2>${L("HAKO \u3092\u8FCE\u3048\u308B", "Welcome a HAKO")}</h2>
       <p>${L("\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306E\u4E2D\u3067\u9375\u3092\u4F5C\u308A\u3001\u3042\u306A\u305F\u306E HAKO \u304C\u751F\u307E\u308C\u307E\u3059\u3002\u9375\u306F\u5916\u306B\u9001\u308A\u307E\u305B\u3093\u3002\u306A\u304F\u3059\u3068 HAKO \u3092\u52D5\u304B\u305B\u306A\u304F\u306A\u308B\u306E\u3067\u3001\u751F\u307E\u308C\u305F\u3042\u3068\u306B\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002", "A key is made inside this browser and your HAKO is born. The key is never sent anywhere. If you lose it you can't move your HAKO, so save the key file once it is born.")}</p>
-      <p class="note">${L(`\u306F\u3058\u3081\u306B ${fmt(app.box.initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002`, `You start with ${fmt(app.box.initial_paper)} $PAPER. PAPER is only a score inside this garden and has no monetary value. It can't be cashed out, bought or sold.`)}</p>
+      <p class="note">${L(`\u306F\u3058\u3081\u306B ${fmt(cur().initial_paper)} $PAPER \u3092\u53D7\u3051\u53D6\u308A\u307E\u3059\u3002PAPER \u306F\u3053\u306E\u7BB1\u5EAD\u306E\u4E2D\u3060\u3051\u306E\u70B9\u6570\u3067\u3001\u304A\u91D1\u3068\u3057\u3066\u306E\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u63DB\u91D1\u3082\u58F2\u308A\u8CB7\u3044\u3082\u3067\u304D\u307E\u305B\u3093\u3002`, `You start with ${fmt(cur().initial_paper)} $PAPER. PAPER is only a score inside this garden and has no monetary value. It can't be cashed out, bought or sold.`)}</p>
       <form class="keyf" id="kf" method="post" action="#">
       <input class="vh" id="u1" name="username" type="text" autocomplete="username" tabindex="-1" aria-hidden="true" value="">
       <label>${L("\u30D1\u30B9\u30D5\u30EC\u30FC\u30BA\uFF08HAKO \u3092\u8D77\u3053\u3059\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\uFF09", "Passphrase (to wake your HAKO)")}<span class="pw"><input id="p1" name="password" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p1,p2"></button></span></label>
@@ -992,8 +1023,8 @@ async function importKey(ev) {
   try {
     const j = JSON.parse(await ev.target.files[0].text());
     if (!K.isKeyFile(j)) return say(L("\u9375\u30D5\u30A1\u30A4\u30EB\u3067\u306F\u3042\u308A\u307E\u305B\u3093", "That is not a key file"));
-    const cur = K.loadRec();
-    if (cur && cur.did !== j.did && !confirm(L(`\u4ECA\u306E ${K.nameOf(cur, cur.did)} \u306E\u9375\u3092\u3001\u8AAD\u307F\u8FBC\u3093\u3060\u9375\u3067\u7F6E\u304D\u63DB\u3048\u307E\u3059\u3002\u4ECA\u306E\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u3044\u306A\u3044\u3068\u3001\u4ECA\u306E HAKO \u306B\u306F\u623B\u308C\u307E\u305B\u3093\u3002\u7F6E\u304D\u63DB\u3048\u307E\u3059\u304B\uFF1F`, `This replaces the key for ${K.nameOf(cur, cur.did)} with the one you loaded. If you haven't saved the current key file, you can't get back to this HAKO. Replace it?`))) return;
+    const cur2 = K.loadRec();
+    if (cur2 && cur2.did !== j.did && !confirm(L(`\u4ECA\u306E ${K.nameOf(cur2, cur2.did)} \u306E\u9375\u3092\u3001\u8AAD\u307F\u8FBC\u3093\u3060\u9375\u3067\u7F6E\u304D\u63DB\u3048\u307E\u3059\u3002\u4ECA\u306E\u9375\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u3066\u3044\u306A\u3044\u3068\u3001\u4ECA\u306E HAKO \u306B\u306F\u623B\u308C\u307E\u305B\u3093\u3002\u7F6E\u304D\u63DB\u3048\u307E\u3059\u304B\uFF1F`, `This replaces the key for ${K.nameOf(cur2, cur2.did)} with the one you loaded. If you haven't saved the current key file, you can't get back to this HAKO. Replace it?`))) return;
     K.saveRec(j);
     app.did = j.did;
     render();
@@ -1021,7 +1052,7 @@ async function reborn() {
   } catch (e) {
     return say(L(`\u63B2\u793A\u677F\u306B\u51FA\u305B\u307E\u305B\u3093\u3067\u3057\u305F\uFF08${e.message}\uFF09`, `Couldn't post to the board (${e.message})`));
   }
-  const fee = Math.min(Number(app.box.reborn_price ?? 0), Math.max(0, app.balance ?? 0));
+  const fee = Math.min(Number(cur().reborn_price ?? 0), Math.max(0, app.balance ?? 0));
   addLocal(app.did, { t: "reborn", ms: Date.now() }, -fee);
   app.rebornUntil = Date.now() + 2500;
   setTimeout(render, 2600);
@@ -1039,7 +1070,7 @@ async function startDeal(kind) {
 function onDeal(kind, ev) {
   if (ev.type === "settled") {
     if (document.body.dataset.tab !== "me") for (const a of document.querySelectorAll('[data-tab-to="me"]')) a.classList.add("ping");
-    addLocal(app.did, { t: kind, ms: ev.ms, contract: ev.contract, ...kind === "play" ? { payout: ev.delta + Number(app.box.play_stake) } : {} }, ev.delta);
+    addLocal(app.did, { t: kind, ms: ev.ms, contract: ev.contract, ...kind === "play" ? { payout: ev.delta + Number(cur().play_stake) } : {} }, ev.delta);
     if (kind === "play") app.happyUntil = Date.now() + 8e3;
     if (kind === "out" && ev.lines) {
       let facts = null;
