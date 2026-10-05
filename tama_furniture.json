@@ -323,7 +323,7 @@
    "place": "wall",
    "slot": 3,
    "when": [
-    "rebirths",
+    "joined",
     1
    ],
    "art": [
@@ -339,6 +339,30 @@
     " kgrggggggk ",
     "  kkppppkk  ",
     "    kppk    "
+   ]
+  },
+  {
+   "key": "photo",
+   "ja": "写真立て",
+   "en": "Photo frame",
+   "place": "wall",
+   "slot": 4,
+   "when": [
+    "rebirths",
+    1
+   ],
+   "art": [
+    "kkkkkkkkkkkk",
+    "kddddddddddk",
+    "kdbbbbbbbbdk",
+    "kdbbkkkkbbdk",
+    "kdbkcccckbdk",
+    "kdbkncnckbdk",
+    "kdbkcccckbdk",
+    "kdbbkkkkbbdk",
+    "kdggggggggdk",
+    "kddddddddddk",
+    "kkkkkkkkkkkk"
    ]
   }
  ],
@@ -368,6 +392,10 @@
   [
    0.7,
    0.22
+  ],
+  [
+   0.52,
+   0.1
   ]
  ]
 }

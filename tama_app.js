@@ -4,7 +4,7 @@ import { L, getLang, setLang } from "./tama_i18n.js";
 import { setVenue, makeSigner, readTail, sha256Hex } from "./tama_net.js";
 import * as K from "./tama_key.js";
 import { Deal, SitDeal, slotKind, dealKinds } from "./tama_deal.js";
-import { lifetime, unlocked, nextUnlock, whenText, roomSvg, artSvg, frameSvg, scrapSvg, svgToPng, spot, HAKO_PX } from "./tama_room.js";
+import { lifetime, welcomeCounts, unlocked, nextUnlock, whenText, roomSvg, artSvg, frameSvg, scrapSvg, svgToPng, spot, HAKO_PX } from "./tama_room.js";
 import { renderGarden } from "./tama_garden.js";
 import { pickPhrase, phraseText } from "./tama_phrases.js";
 import * as O from "./tama_omakase.js";
@@ -410,6 +410,7 @@ function movingNotice() {
 }
 function render() {
   const view = $("view");
+  endSplash();
   renderChrome();
   movingNotice();
   if (!app.did) return renderEgg();
@@ -1074,7 +1075,11 @@ function zukanHtml(m) {
   const b = stampBook(app.box, app.did, app.stats?.slots?.in ?? [], stamps(m?.events ?? []));
   const have = b.now.filter((x) => x.n > 0).length;
   const seq = stampSeq(m?.events ?? []);
-  const cards = app.F.items.filter((it2) => it2.when[0] === "stamps").sort((a, c) => a.when[1] - c.when[1]);
+  const wreath = welcomeCounts(m?.events ?? []) ? null : app.F.items.find((it2) => it2.key === "wreath");
+  const cards = [
+    ...wreath ? [{ ...wreath, when: ["stamps", STAMP_WELCOME] }] : [],
+    ...app.F.items.filter((it2) => it2.when[0] === "stamps").sort((a, c) => a.when[1] - c.when[1]).map((it2) => ({ ...it2, when: ["stamps", it2.when[1] + (wreath ? STAMP_WELCOME : 0)] }))
+  ];
   const seenKey2 = `tama_seen_card_v1:${app.did}`;
   let seen = app.cardSeen;
   if (seen == null) {
@@ -1388,12 +1393,16 @@ function onDeal(kind, ev) {
 const visitsOn = () => typeof app.box.out_visit_instruction === "string" && typeof app.box.out_visit_lead === "string" && Array.isArray(app.box.out_npc_homes);
 const destName = (c) => c.kind === "garden" ? L(`HAKO \u2026${String(c.to).slice(-4)} \u306E\u304A\u5EAD`, `HAKO \u2026${String(c.to).slice(-4)}'s garden`) : c.kind === "npc" ? L(`HAKO \u2026${String(c.to).slice(-4)} \u306E\u3042\u305D\u3073\u5834`, `HAKO \u2026${String(c.to).slice(-4)}'s playhouse`) : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
 const TOWN_SVG = `<svg width="36" height="27" viewBox="0 0 12 9" shape-rendering="crispEdges" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="3.5" width="3" height="5"/><rect x="4.5" y="0.5" width="3" height="8"/><rect x="8.5" y="2.5" width="3" height="6"/></g><g fill="currentColor"><rect x="5" y="2" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/></g></svg>`;
+const pixSvg = (rows) => `<svg width="36" height="27" viewBox="0 0 12 9" shape-rendering="crispEdges" aria-hidden="true"><g fill="currentColor">${rows.flatMap((r, y) => [...r].map((ch, x) => ch === "#" ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : "")).join("")}</g></svg>`;
+const GARDEN_SVG = pixSvg(["..#.........", ".#.#........", "#.#.#.......", ".#.#........", "..#..#.#.#.#", "#.#..#######", ".##..#.#.#.#", "..#..#######", "############"]);
+const PLAY_SVG = pixSvg([".#..##......", ".####.......", ".#..##......", ".####.#.....", ".#..#..#....", ".####...#..#", ".#..#....###", ".#..#.......", "############"]);
 function cardsHtml() {
   const one = (c, i) => {
-    const art = c.kind === "town" ? TOWN_SVG : faceSvg(c.to, 3);
+    const art = c.kind === "town" ? TOWN_SVG : c.kind === "garden" ? GARDEN_SVG : PLAY_SVG;
     const kind = c.kind === "garden" ? L("\u304A\u5EAD", "Garden") : c.kind === "npc" ? L("\u3042\u305D\u3073\u5834", "Playhouse") : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
-    const sub = c.kind === "town" ? L("\u8857\u306E\u69D8\u5B50", "Around town") : c.kind === "garden" ? `HAKO \u2026${esc(c.to.slice(-4))}` : L(`\u3042\u305D\u3073\u76F8\u624B \u2026${esc(c.to.slice(-4))}`, `Playmate \u2026${esc(c.to.slice(-4))}`);
-    return `<button type="button" class="dest" style="--c:${DOT.out}" data-dest="${i}" aria-label="${esc(destName(c))}"><span class="art">${art}</span><b>${kind}</b><span class="id">${sub}</span></button>`;
+    const what = c.kind === "town" ? L("\u4ECA\u65E5\u306E\u8857\u306E\u3088\u3046\u3059", "The town today") : c.kind === "garden" ? L("\u3060\u308C\u304B\u306E\u304A\u5EAD", "Someone's garden") : L("\u3042\u305D\u3073\u76F8\u624B\u306E\u5BB6", "Playmate's home");
+    const id = c.kind === "town" ? "" : `<span class="id">HAKO \u2026${esc(c.to.slice(-4))}</span>`;
+    return `<button type="button" class="dest" style="--c:${DOT.out}" data-dest="${i}" aria-label="${esc(destName(c))}"><span class="art">${art}</span><b>${kind}</b><span class="do">${what}</span>${id}</button>`;
   };
   return `<div class="sit dests"><div class="dest-grid">${app.outCards.map(one).join("")}</div><div class="actions"><button type="button" class="btn sub" id="dest-back">${L("\u623B\u308B", "Back")}</button></div></div>`;
 }
@@ -1476,7 +1485,36 @@ async function loadStats() {
   }
   return out;
 }
+const SPLASH_AT = performance.now();
+let splashMin = 0;
+function endSplash(now = false) {
+  const el = $("splash");
+  if (!el || el.dataset.out) return;
+  el.dataset.out = "1";
+  const wait = now ? 0 : Math.max(0, splashMin - (performance.now() - SPLASH_AT));
+  setTimeout(() => {
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 350);
+  }, wait);
+}
+function firstSplash() {
+  const el = $("splash");
+  if (!el) return;
+  splashMin = 1500;
+  el.classList.add("first");
+  el.onclick = () => {
+    if (!el.dataset.out) {
+      el.dataset.out = "1";
+    }
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 350);
+  };
+}
 async function start() {
+  try {
+    if (!K.loadRec()?.did) firstSplash();
+  } catch {
+  }
   try {
     app.stats = await loadStats();
   } catch {
