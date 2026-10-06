@@ -48,6 +48,7 @@ const welcomeCounts = (events) => events.some((e) => e.t === "join" && e.ms < PE
 const WAS_UNTIL = 17910261e5;
 const PEAK_UNTIL = 17912556e5;
 const has = (it, n) => (n[it.when[0]] ?? 0) >= it.when[1] || !!it.was && (n.was?.[it.was[0]] ?? 0) >= it.was[1] || it.peak != null && (n.peak ?? 0) >= it.peak;
+const hasItem = has;
 const unlocked = (F, n) => F.items.filter((it) => has(it, n));
 const nextUnlock = (F, n) => F.items.find((it) => !has(it, n)) ?? null;
 const WHEN_JA = { meals: "\u3054\u306F\u3093", outs: "\u304A\u3067\u304B\u3051", plays: "\u3042\u305D\u3076", days: "\u304A\u4E16\u8A71\u3057\u305F\u65E5", rebirths: "\u751F\u307E\u308C\u5909\u308F\u308A", joined: "\u8FCE\u3048\u305F" };
@@ -211,6 +212,7 @@ export {
   artLayers,
   artSvg,
   frameSvg,
+  hasItem,
   lifetime,
   nextUnlock,
   peakPaper,

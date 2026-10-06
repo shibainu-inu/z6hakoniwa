@@ -4,7 +4,7 @@ import { L, getLang, setLang } from "./tama_i18n.js";
 import { setVenue, makeSigner, readTail, sha256Hex } from "./tama_net.js";
 import * as K from "./tama_key.js";
 import { Deal, SitDeal, slotKind, dealKinds } from "./tama_deal.js";
-import { lifetime, welcomeCounts, unlocked, nextUnlock, whenText, roomSvg, artSvg, frameSvg, scrapSvg, svgToPng, spot, HAKO_PX } from "./tama_room.js";
+import { lifetime, welcomeCounts, hasItem, unlocked, nextUnlock, whenText, roomSvg, artSvg, frameSvg, scrapSvg, svgToPng, spot, HAKO_PX } from "./tama_room.js";
 import { renderGarden } from "./tama_garden.js";
 import { pickPhrase, phraseText } from "./tama_phrases.js";
 import * as O from "./tama_omakase.js";
@@ -1076,9 +1076,10 @@ function zukanHtml(m) {
   const have = b.now.filter((x) => x.n > 0).length;
   const seq = stampSeq(m?.events ?? []);
   const wreath = welcomeCounts(m?.events ?? []) ? null : app.F.items.find((it2) => it2.key === "wreath");
+  const life = lifetime(m?.events ?? [], app.box, localDay);
   const cards = [
     ...wreath ? [{ ...wreath, when: ["stamps", STAMP_WELCOME] }] : [],
-    ...app.F.items.filter((it2) => it2.when[0] === "stamps").sort((a, c) => a.when[1] - c.when[1]).map((it2) => ({ ...it2, when: ["stamps", it2.when[1] + (wreath ? STAMP_WELCOME : 0)] }))
+    ...app.F.items.filter((it2) => it2.when[0] === "stamps" && (life.stamps >= it2.when[1] || !hasItem(it2, life))).sort((a, c) => a.when[1] - c.when[1]).map((it2) => ({ ...it2, when: ["stamps", it2.when[1] + (wreath ? STAMP_WELCOME : 0)] }))
   ];
   const seenKey2 = `tama_seen_card_v1:${app.did}`;
   let seen = app.cardSeen;
