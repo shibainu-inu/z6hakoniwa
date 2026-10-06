@@ -860,7 +860,7 @@ function roomInfo(m, st) {
   const art = app.lastArticle ?? (m.fold?.outs ?? []).slice(-1)[0] ?? null;
   return `<div class="roominfo" id="room"><p class="label">ROOM \xB7 ${have.length}/${app.F.items.length}</p>
     <div class="chips">${have.map((x) => `<span class="chip">${esc(L(x.ja, x.en ?? x.ja))}</span>`).join("") || `<span class="small">${L("\u307E\u3060\u4F55\u3082\u306A\u3044\u90E8\u5C4B\u3067\u3059", "The room is still empty")}</span>`}</div>
-    ${next ? `<p class="small">${L("\u6B21\u306F", "Next:")} <b>${esc(L(next.ja, next.en ?? next.ja))}</b>${L("\uFF08", " (")}${next.when[0] === "stamps" ? `<a href="#zukan" class="tozk">${esc(whenText(next, n))}</a>` : esc(whenText(next, n))}${L("\uFF09", ")")}</p>` : ""}
+    ${next ? `<p class="small">${L("\u6B21\u306F", "Next:")} <b>${esc(L(next.ja, next.en ?? next.ja))}</b>${L("\uFF08", " (")}${esc(whenText(next, n))}${L("\uFF09", ")")}</p>` : ""}
     ${footprintsHtml(m)}
     <div class="actions">
       <button class="btn sub" id="snapshot">${L("HAKO \u3092\u30B7\u30A7\u30A2", "Share HAKO")}</button>
@@ -1401,7 +1401,7 @@ function cardsHtml() {
   const one = (c, i) => {
     const art = c.kind === "town" ? TOWN_SVG : c.kind === "garden" ? GARDEN_SVG : HOUSE_SVG;
     const kind = c.kind === "garden" ? L("\u3060\u308C\u304B\u306E\u304A\u5EAD", "Someone's garden") : c.kind === "npc" ? L("\u304A\u3068\u306A\u308A\u3055\u3093", "Next door") : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
-    const what = c.kind === "town" ? L("\u4ECA\u65E5\u306E\u8857\u306E\u3088\u3046\u3059", "The town today") : c.kind === "garden" ? L("\u307B\u304B\u306E\u4EBA\u306E HAKO", "Another player's HAKO") : L("\u8FD1\u6240\u306E HAKO \u306E\u5BB6", "A neighbor's home");
+    const what = c.kind === "town" ? L("\u8857\u306E\u3088\u3046\u3059", "Around town") : c.kind === "garden" ? L("\u307B\u304B\u306E HAKO", "Another HAKO") : L("\u8FD1\u6240\u306E HAKO", "A HAKO nearby");
     const id = c.kind === "town" ? "" : `<span class="id">HAKO \u2026${esc(c.to.slice(-4))}</span>`;
     return `<button type="button" class="dest" style="--c:${DOT.out}" data-dest="${i}" aria-label="${esc(destName(c))}"><span class="art">${art}</span><b>${kind}</b><span class="do">${what}</span>${id}</button>`;
   };
