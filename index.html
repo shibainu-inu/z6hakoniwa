@@ -196,7 +196,7 @@ details.article[open]{background:var(--card)}details.article[open] summary{borde
 .tabbar svg{width:22px;height:22px;display:block}
 body[data-tab=me] aside,body:not([data-tab=me]) #view{display:none}
 body[data-tab=garden] #story,body[data-tab=garden] #how,body[data-tab=story] #live,body[data-tab=story] #garden,body[data-tab=story] #how,body[data-tab=how] #live,body[data-tab=how] #garden,body[data-tab=how] #story{display:none}
-.status{display:none}footer.legal{padding-bottom:92px}
+.status{display:none}body footer.legal{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
 .actions.main{display:grid;grid-template-columns:repeat(3,1fr)}.actions.main .btn{justify-content:center;flex-wrap:wrap;padding:9px 4px;gap:2px 6px;font-size:14px;white-space:nowrap;min-width:0}.actions.main .btn .price{font-size:10.5px;flex-basis:100%;text-align:center}.actions.main .btn:only-child{grid-column:1/-1}}
 /* 写真（部屋を撮ってシェア） */
 .stage.flash::after{content:"";position:absolute;inset:0;z-index:3;background:#fff;pointer-events:none;animation:flash .6s ease-out forwards}
