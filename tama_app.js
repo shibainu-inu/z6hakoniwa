@@ -948,7 +948,7 @@ async function snapshot(m, st) {
     const box = document.createElement("div");
     box.className = "snap";
     box.id = "snap";
-    box.innerHTML = `<div class="photo"><img src="${src}" alt="${esc(L(`${title} \u306E\u90E8\u5C4B\u306E\u5199\u771F`, `A photo of ${title}'s room`))}"><p class="mono">${esc(title)}</p></div>
+    box.innerHTML = `<div class="photo"><img src="${src}" alt="${esc(L(`${title} \u306E\u90E8\u5C4B\u306E\u5199\u771F`, `A photo of ${title}'s room`))}"></div>
       <div class="actions"><button class="btn" id="snap-share" style="--c:var(--accent)">${L("\u30B7\u30A7\u30A2\u3059\u308B", "Share")}</button><a class="btn sub" id="snap-save" href="${src}" download="${file.name}">${L("\u753B\u50CF\u3092\u4FDD\u5B58", "Save image")}</a><button class="btn sub" id="snap-close">${L("\u3068\u3058\u308B", "Close")}</button></div>`;
     document.body.appendChild(box);
     const close = () => {

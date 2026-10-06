@@ -4,10 +4,11 @@ import { rewardOf, playBet } from "./tama_core.js";
 import { L } from "./tama_i18n.js";
 import { available as omaAvailable, capDay } from "./tama_omakase.js";
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
-const PAL = { k: "ink", w: "#d9b48a", d: "#a87f59", o: "#f5a06e", c: "#fffdf8", y: "#f2cf6b", s: "#b8b4ac" };
+const PAL = { k: "ink", w: "#d9b48a", d: "#a87f59", o: "#f5a06e", c: "#fffdf8", y: "#f2cf6b", s: "#b8b4ac", r: "#f07c7c" };
 const BOWL = ["    kkkkkk    ", "  kkcccccckk  ", "kkkkkkkkkkkkkk", "kooooooooooook", "kooyyyyyyyyook", " kooooooooook ", "  kooooooook  ", "   kkkkkkkk   "];
 const SIGN = ["  kkkkkkkkkkk   ", "  kwwwwwwwwwkk  ", "  kwwwwwwwwwwwk ", "  kwwwwwwwwwkk  ", "  kkkkkkkkkkk   ", "      kdk       ", "      kdk       ", "      kdk       ", "      kdk       ", "      kdk       ", "      kdk       ", "      kdk       ", "     kkkkk      "];
 const PAPER = ["kkkkkkkkkk", "kcccccccck", "kckkkkkcck", "kcccccccck", "kcssssscck", "kcccccccck", "kcssssccck", "kcccccccck", "kkkkkkkkkk"];
+const CAL = ["  kk    kk  ", "kkkkkkkkkkkk", "krrrrrrrrrrk", "kkkkkkkkkkkk", "kcccccccccck", "kcscscscscck", "kcccccccccck", "kcscscyyscck", "kcccccyyccck", "kcscscscscck", "kcccccccccck", "kkkkkkkkkkkk"];
 const COIN = [" kkkk ", "kyyyyk", "kyyyyk", "kyyyyk", "kyyyyk", " kkkk "];
 const TOMB = ["  kkkkkk  ", " kcccccck ", "kcckkkkcck", "kccckkccck", "kccckkccck", "kcccccccck", "kkkkkkkkkk"];
 const CROWD = ["#f5a3b5", "#3b8cff", "#5ec99a", "#f2cf6b", "#a394ee", "#f5a06e", "#6fc9dc", "#f07c7c"];
@@ -87,10 +88,10 @@ function howHtml(box, F) {
     )
   ) + (box.refill_below ? page(
     "h-refill",
-    hako("home", 15) + sp("coin", 6, art(COIN)) + sp("rep", 9, art(PAPER)) + `<span class="tag t5 mono">${fmt(box.initial_paper)}</span>`,
+    sp("cal", 12, art(CAL)) + hako("home", 15) + `<span class="tag t5 mono">${fmt(box.initial_paper)}</span>`,
     L(
-      `PAPER \u304C ${fmt(box.refill_below)} \u3088\u308A\u5C11\u306A\u304F\u306A\u308B\u3068\u3001\u9031\u306B 1 \u56DE\u3001${fmt(box.initial_paper)} \u307E\u3067\u88DC\u5145\u3055\u308C\u307E\u3059\uFF08\u9031\u306F\u65E5\u672C\u6642\u9593\u306E\u6708\u66DC\u304B\u3089\uFF09\u3002`,
-      `If your PAPER falls below ${fmt(box.refill_below)}, it's topped back up to ${fmt(box.initial_paper)} once a week (weeks start on Monday, JST).`
+      `PAPER \u304C ${fmt(box.refill_below)} \u3088\u308A\u5C11\u306A\u304F\u306A\u308B\u3068\u3001\u9031\u306B 1 \u56DE\u3001${fmt(box.initial_paper)} \u307E\u3067\u88DC\u5145\u3055\u308C\u307E\u3059\u3002`,
+      `If your PAPER falls below ${fmt(box.refill_below)}, it's topped back up to ${fmt(box.initial_paper)} once a week.`
     )
   ) : "") + page(
     "h-grave",
@@ -125,7 +126,7 @@ function howHtml(box, F) {
     )
   ) : "") + (omaAvailable(box) ? page(
     "h-oma",
-    face("s1", CROWD[2], 11) + hako("home", 15) + sp("bowl", 11, art(BOWL)),
+    face("s1", CROWD[2], 11) + hako("eat", 15) + sp("bowl", 11, art(BOWL)),
     box.sitter_out_per_day != null ? L(
       `<b>\u304A\u4EFB\u305B</b>\u306B\u3059\u308B\u3068\u3001\u30DA\u30FC\u30B8\u3092\u9589\u3058\u3066\u3082\u30B7\u30C3\u30BF\u30FC\u304C\u3054\u306F\u3093\u3092\u3042\u3052\u3001\u3042\u305D\u3073\u307E\u3059\u3002\u591C ${Number(box.sitter_out_from_hour ?? 20) - 12} \u6642\uFF08\u65E5\u672C\u6642\u9593\uFF09\u307E\u3067\u306B\u304A\u3067\u304B\u3051\u3057\u306A\u304B\u3063\u305F\u65E5\u306F\u3001\u30B7\u30C3\u30BF\u30FC\u304C\u9001\u308A\u51FA\u3057\u307E\u3059\u3002\u4F7F\u3046\u306E\u306F 1 \u65E5 ${fmt(capDay(box))} $PAPER \u307E\u3067\u3002`,
       `With <b>auto-care</b>, the sitter feeds and plays with your HAKO even after you close the page. If it hasn't gone out by ${Number(box.sitter_out_from_hour ?? 20) - 12} p.m. JST, the sitter sends it off. Up to ${fmt(capDay(box))} $PAPER a day.`
