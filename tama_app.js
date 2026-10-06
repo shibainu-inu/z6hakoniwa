@@ -1498,11 +1498,12 @@ function endSplash(now = false) {
     setTimeout(() => el.remove(), 350);
   }, wait);
 }
-function firstSplash() {
+function firstSplash(kind = "first") {
   const el = $("splash");
   if (!el) return;
-  splashMin = 1500;
-  el.classList.add("first");
+  splashMin = kind === "first" ? 1500 : 1900;
+  el.classList.remove(kind === "first" ? "back" : "first");
+  el.classList.add(kind);
   el.onclick = () => {
     if (!el.dataset.out) {
       el.dataset.out = "1";
@@ -1513,8 +1514,9 @@ function firstSplash() {
 }
 async function start() {
   try {
-    if (!K.loadRec()?.did) firstSplash();
+    firstSplash(K.loadRec()?.did ? "back" : "first");
   } catch {
+    firstSplash();
   }
   try {
     app.stats = await loadStats();
