@@ -1487,7 +1487,7 @@ async function loadStats() {
   return out;
 }
 const SPLASH_AT = performance.now();
-const SPLASH_MS = { a: 1800, b: 2100, c: 1800, d: 2100, e: 1800 };
+const SPLASH_MS = { a: 1800, b: 2100, c: 1800, d: 2100, e: 1800, f: 2200 };
 let splashMin = 0;
 function endSplash(now = false) {
   const el = $("splash");
@@ -1502,7 +1502,7 @@ function endSplash(now = false) {
 function firstSplash(kind = "first") {
   const el = $("splash");
   if (!el) return;
-  let v = el.className.match(/\bv-([a-e])\b/)?.[1];
+  let v = el.className.match(/\bv-([a-f])\b/)?.[1];
   if (!v) {
     v = kind === "first" ? "b" : "a";
     el.classList.add(kind, `v-${v}`);
