@@ -8,6 +8,7 @@ import { lifetime, welcomeCounts, hasItem, unlocked, nextUnlock, whenText, roomS
 import { renderGarden } from "./tama_garden.js";
 import { pickPhrase, phraseText } from "./tama_phrases.js";
 import * as O from "./tama_omakase.js";
+import { openFeedback } from "./tama_feedback.js";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmt = (n) => Math.round(Number(n)).toLocaleString("ja-JP");
@@ -845,6 +846,12 @@ function renderChrome() {
       }
     };
   }
+  const fb = $("fbopen");
+  if (fb && !fb.dataset.done && app.box?.feedback_url) {
+    fb.dataset.done = "1";
+    fb.hidden = false;
+    fb.onclick = () => openFeedback({ url: app.box.feedback_url, did: app.did ?? K.loadRec()?.did ?? null, ver: app.box.version ?? "" });
+  }
   renderGarden(app.stats, app.moods, app.box, app.F);
 }
 const MOTES = [[14, 22, 0], [31, 48, 5], [58, 18, 9], [72, 40, 3], [88, 28, 12]].map(([x, y, d]) => `<i class="mote" style="left:${x}%;top:${y}%;animation-delay:${d}s"></i>`).join("");
@@ -1488,16 +1495,63 @@ async function loadStats() {
 }
 const SPLASH_AT = performance.now();
 const SPLASH_MS = { a: 1800, b: 2100, c: 1800, d: 2100, e: 1800, f: 2200 };
-let splashMin = 0;
+let splashMin = 0, splashKind = "first";
 function endSplash(now = false) {
   const el = $("splash");
-  if (!el || el.dataset.out) return;
-  el.dataset.out = "1";
+  if (!el || el.dataset.out || el.dataset.ending) return;
+  el.dataset.ending = "1";
   const wait = now ? 0 : Math.max(0, splashMin - (performance.now() - SPLASH_AT));
   setTimeout(() => {
-    el.classList.add("out");
-    setTimeout(() => el.remove(), 350);
+    if (!el.dataset.out) leaveSplash(el);
   }, wait);
+}
+function leaveSplash(el) {
+  el.dataset.out = "1";
+  showNotice();
+  el.classList.add("out");
+  setTimeout(() => el.remove(), 750);
+}
+const NOTICE_MS = { first: 5e3, back: 3e3 };
+function showNotice() {
+  if ($("notice")) return;
+  const n = app.box?.max_hakos;
+  const el = document.createElement("div");
+  el.id = "notice";
+  el.className = "notice";
+  el.tabIndex = -1;
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-labelledby", "nt-h");
+  const ms = NOTICE_MS[splashKind] ?? NOTICE_MS.back;
+  el.style.setProperty("--ms", `${ms}ms`);
+  const li = (ic, t2) => `<li><span class="nt-ic" aria-hidden="true">${ic}</span><span>${t2}</span></li>`;
+  el.innerHTML = `<div class="nt-in"><span class="nt-mark" aria-hidden="true">${$("mark")?.innerHTML ?? ""}</span>
+    <h2 id="nt-h">${L("\u306F\u3058\u3081\u308B\u524D\u306B", "Before you start")}</h2>
+    <ul>${li("i", L("\u30CF\u30B3\u30CB\u30EF\u306F\u975E\u516C\u5F0F\u306E\u500B\u4EBA\u306E\u4F5C\u54C1\u3067\u3059\u3002", "Hakoniwa is an unofficial personal project."))}
+      ${li("$", L("\u30B2\u30FC\u30E0\u5185\u901A\u8CA8 $PAPER \u306B\u4FA1\u5024\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u304A\u91D1\u306B\u306F\u63DB\u3048\u3089\u308C\u307E\u305B\u3093\u3002", "$PAPER is in-game currency with no real value. It can't be exchanged for money."))}
+      ${li(n != null ? fmt(n) : "#", n != null ? L(`\u30CF\u30B3\u30CB\u30EF\u306F HAKO \u305F\u3061\u3068\u4E00\u7DD2\u306B\u5C0F\u3055\u306A\u30B5\u30FC\u30D0\u30FC\u3067\u52D5\u3044\u3066\u3044\u308B\u305F\u3081\u3001\u5165\u308C\u308B\u6570\u306B\u9650\u308A\u304C\u3042\u308A\u307E\u3059\uFF08\u3044\u307E\u306F ${fmt(n)} \u5339\u307E\u3067\uFF09\u3002`, `Hakoniwa shares a small server with the HAKO, so space is limited (up to ${fmt(n)} HAKO for now).`) : L("\u30CF\u30B3\u30CB\u30EF\u306F HAKO \u305F\u3061\u3068\u4E00\u7DD2\u306B\u5C0F\u3055\u306A\u30B5\u30FC\u30D0\u30FC\u3067\u52D5\u3044\u3066\u3044\u308B\u305F\u3081\u3001\u5165\u308C\u308B\u6570\u306B\u9650\u308A\u304C\u3042\u308A\u307E\u3059\u3002", "Hakoniwa shares a small server with the HAKO, so space is limited."))}
+      ${li("\u03B2", L("\u8A66\u4F5C\u306E\u305F\u3081\u3001\u4E88\u544A\u306A\u304F\u6B62\u3081\u305F\u308A\u4F5C\u308A\u76F4\u3057\u305F\u308A\u3059\u308B\u3053\u3068\u304C\u3042\u308A\u307E\u3059\u3002", "It's a prototype and may be paused or rebuilt without notice."))}</ul>
+    <div class="nt-bar" aria-hidden="true"><span></span></div>
+    <p class="nt-tap">${L("\u62BC\u3059\u3068\u5148\u3078\u9032\u307F\u307E\u3059", "Tap to continue")}</p></div>`;
+  document.body.append(el);
+  const key = (e) => {
+    if (e.key === "Enter" || e.key === "Escape" || e.key === " ") {
+      e.preventDefault();
+      close();
+    }
+  };
+  const t = setTimeout(close, ms + 700);
+  function close() {
+    clearTimeout(t);
+    if (el.dataset.out) return;
+    el.dataset.out = "1";
+    document.removeEventListener("keydown", key);
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 750);
+  }
+  el.onclick = close;
+  document.addEventListener("keydown", key);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("on")));
+  el.focus({ preventScroll: true });
 }
 function firstSplash(kind = "first") {
   const el = $("splash");
@@ -1508,12 +1562,9 @@ function firstSplash(kind = "first") {
     el.classList.add(kind, `v-${v}`);
   }
   splashMin = SPLASH_MS[v];
+  splashKind = el.classList.contains("first") ? "first" : "back";
   el.onclick = () => {
-    if (!el.dataset.out) {
-      el.dataset.out = "1";
-    }
-    el.classList.add("out");
-    setTimeout(() => el.remove(), 350);
+    if (!el.dataset.out) leaveSplash(el);
   };
 }
 async function start() {
