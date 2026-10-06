@@ -1122,7 +1122,7 @@ function stampState() {
 }
 function stampLine(before, after) {
   const np = after.places.filter((p) => !before.places.includes(p)), nf = after.furn.filter((k) => !before.furn.includes(k));
-  const kindName = (p) => p === "town" ? L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore") : p.startsWith("npc:") ? L("\u3042\u305D\u3073\u5834", "Playhouse") : L("\u304A\u5EAD", "Garden");
+  const kindName = (p) => p === "town" ? L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore") : p.startsWith("npc:") ? L("\u304A\u3068\u306A\u308A\u3055\u3093", "Next door") : L("\u3060\u308C\u304B\u306E\u304A\u5EAD", "Someone's garden");
   const items = nf.map((k) => app.F.items.find((it) => it.key === k)).filter(Boolean).map((it) => L(it.ja, it.en ?? it.ja));
   const sp = !np.length ? "" : np.length === 1 ? L(`${kindName(np[0])}\u306E\u30B9\u30BF\u30F3\u30D7\u3092\u62BC\u3057\u307E\u3057\u305F`, `Stamped: ${kindName(np[0])}`) : L(`\u30B9\u30BF\u30F3\u30D7\u3092 ${np.length} \u3064\u62BC\u3057\u307E\u3057\u305F`, `Stamped: ${np.length} places`);
   const fu = !items.length ? "" : items.length === 1 ? L(`${items[0]}\u304C\u5C4A\u304D\u307E\u3057\u305F`, `The ${items[0].toLowerCase()} has arrived`) : items.length === 2 ? L(`${items[0]}\u3068${items[1]}\u304C\u5C4A\u304D\u307E\u3057\u305F`, `The ${items[0].toLowerCase()} and ${items[1].toLowerCase()} have arrived`) : L(`${items[0]}\u307B\u304B ${items.length - 1} \u3064\u304C\u5C4A\u304D\u307E\u3057\u305F`, `The ${items[0].toLowerCase()} and ${items.length - 1} more have arrived`);
@@ -1392,16 +1392,16 @@ function onDeal(kind, ev) {
   render();
 }
 const visitsOn = () => typeof app.box.out_visit_instruction === "string" && typeof app.box.out_visit_lead === "string" && Array.isArray(app.box.out_npc_homes);
-const destName = (c) => c.kind === "garden" ? L(`HAKO \u2026${String(c.to).slice(-4)} \u306E\u304A\u5EAD`, `HAKO \u2026${String(c.to).slice(-4)}'s garden`) : c.kind === "npc" ? L(`HAKO \u2026${String(c.to).slice(-4)} \u306E\u3042\u305D\u3073\u5834`, `HAKO \u2026${String(c.to).slice(-4)}'s playhouse`) : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
+const destName = (c) => c.kind === "garden" ? L(`HAKO \u2026${String(c.to).slice(-4)} \u306E\u304A\u5EAD`, `HAKO \u2026${String(c.to).slice(-4)}'s garden`) : c.kind === "npc" ? L(`\u304A\u3068\u306A\u308A\u306E HAKO \u2026${String(c.to).slice(-4)}`, `HAKO \u2026${String(c.to).slice(-4)} next door`) : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
 const TOWN_SVG = `<svg width="36" height="27" viewBox="0 0 12 9" shape-rendering="crispEdges" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="3.5" width="3" height="5"/><rect x="4.5" y="0.5" width="3" height="8"/><rect x="8.5" y="2.5" width="3" height="6"/></g><g fill="currentColor"><rect x="5" y="2" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/></g></svg>`;
 const pixSvg = (rows) => `<svg width="36" height="27" viewBox="0 0 12 9" shape-rendering="crispEdges" aria-hidden="true"><g fill="currentColor">${rows.flatMap((r, y) => [...r].map((ch, x) => ch === "#" ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : "")).join("")}</g></svg>`;
 const GARDEN_SVG = pixSvg(["..#.........", ".#.#........", "#.#.#.......", ".#.#........", "..#..#.#.#.#", "#.#..#######", ".##..#.#.#.#", "..#..#######", "############"]);
-const PLAY_SVG = pixSvg([".#..##......", ".####.......", ".#..##......", ".####.#.....", ".#..#..#....", ".####...#..#", ".#..#....###", ".#..#.......", "############"]);
+const HOUSE_SVG = pixSvg([".....##.....", "....####....", "...######...", "..########..", ".##########.", "..#..#####..", "..#..#..##..", "..####..##..", "############"]);
 function cardsHtml() {
   const one = (c, i) => {
-    const art = c.kind === "town" ? TOWN_SVG : c.kind === "garden" ? GARDEN_SVG : PLAY_SVG;
-    const kind = c.kind === "garden" ? L("\u304A\u5EAD", "Garden") : c.kind === "npc" ? L("\u3042\u305D\u3073\u5834", "Playhouse") : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
-    const what = c.kind === "town" ? L("\u4ECA\u65E5\u306E\u8857\u306E\u3088\u3046\u3059", "The town today") : c.kind === "garden" ? L("\u3060\u308C\u304B\u306E\u304A\u5EAD", "Someone's garden") : L("\u3042\u305D\u3073\u76F8\u624B\u306E\u5BB6", "Playmate's home");
+    const art = c.kind === "town" ? TOWN_SVG : c.kind === "garden" ? GARDEN_SVG : HOUSE_SVG;
+    const kind = c.kind === "garden" ? L("\u3060\u308C\u304B\u306E\u304A\u5EAD", "Someone's garden") : c.kind === "npc" ? L("\u304A\u3068\u306A\u308A\u3055\u3093", "Next door") : L("\u30C6\u30AF\u30CE\u30B3\u30A2\u8857", "Technocore");
+    const what = c.kind === "town" ? L("\u4ECA\u65E5\u306E\u8857\u306E\u3088\u3046\u3059", "The town today") : c.kind === "garden" ? L("\u307B\u304B\u306E\u4EBA\u306E HAKO", "Another player's HAKO") : L("\u8FD1\u6240\u306E HAKO \u306E\u5BB6", "A neighbor's home");
     const id = c.kind === "town" ? "" : `<span class="id">HAKO \u2026${esc(c.to.slice(-4))}</span>`;
     return `<button type="button" class="dest" style="--c:${DOT.out}" data-dest="${i}" aria-label="${esc(destName(c))}"><span class="art">${art}</span><b>${kind}</b><span class="do">${what}</span>${id}</button>`;
   };
@@ -1430,7 +1430,7 @@ async function goOut(c) {
     }
     if (!host || !Number.isFinite(host.hunger) || !Number.isFinite(host.mood)) {
       render();
-      return say(L("\u305D\u306E\u304A\u5EAD\u306F\u3044\u307E\u7559\u5B88\u306E\u3088\u3046\u3067\u3059", "That garden seems to be empty right now"));
+      return say(L("\u305D\u306E\u304A\u5EAD\u306F\u3044\u307E\u7559\u5B88\u306E\u3088\u3046\u3067\u3059", "No one's home at that garden right now"));
     }
     dest = { kind: "garden", to: c.to, words: hostWords(host) };
   }

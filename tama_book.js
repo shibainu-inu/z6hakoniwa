@@ -82,8 +82,8 @@ function howHtml(box, F) {
       `<b>\u3042\u305D\u3076</b>\uFF08${fmt(box.play_stake)} $PAPER\uFF09\u306F 1 \u65E5 ${box.play_per_day} \u56DE\u307E\u3067\u3002\u3054\u304D\u3052\u3093\u304C\u4E0A\u304C\u308A\u3001${table.length ? `\u623B\u308A\u306F ${fmt(Math.min(...table))}\u301C${fmt(Math.max(...table))} $PAPER\u3002\u5E73\u5747\u3059\u308B\u3068\u5C11\u3057\u5897\u3048\u307E\u3059\u3002` : ""}`,
       `<b>Play</b> (${fmt(box.play_stake)} $PAPER) is up to ${box.play_per_day} times a day. Its mood goes up, and ${table.length ? `you get back ${fmt(Math.min(...table))}\u2013${fmt(Math.max(...table))} $PAPER \u2014 a little more than you put in, on average.` : ""}`
     ) : L(
-      `<b>\u3042\u305D\u3076</b>\uFF08${fmt(box.play_stake)} $PAPER\uFF09\u306F 1 \u65E5 ${box.play_per_day} \u56DE\u307E\u3067\u3002\u3042\u305D\u3073\u5834\u306E\u5B50\u3068\u3042\u305D\u3076\u3068\u3001\u3054\u304D\u3052\u3093\u304C\u4E0A\u304C\u308A\u307E\u3059\u3002`,
-      `<b>Play</b> (${fmt(box.play_stake)} $PAPER): up to ${box.play_per_day} times a day. Playing with a friend at the playground lifts its mood.`
+      `<b>\u3042\u305D\u3076</b>\uFF08${fmt(box.play_stake)} $PAPER\uFF09\u306F 1 \u65E5 ${box.play_per_day} \u56DE\u307E\u3067\u3002\u3042\u305D\u3073\u76F8\u624B\u3068\u3042\u305D\u3093\u3067\u3001\u3054\u304D\u3052\u3093\u304C\u4E0A\u304C\u308A\u307E\u3059\u3002`,
+      `<b>Play</b> (${fmt(box.play_stake)} $PAPER): up to ${box.play_per_day} times a day. A round with a playmate lifts its mood.`
     )
   ) + (box.refill_below ? page(
     "h-refill",
