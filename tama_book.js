@@ -10,6 +10,7 @@ const SIGN = ["  kkkkkkkkkkk   ", "  kwwwwwwwwwkk  ", "  kwwwwwwwwwwwk ", "  kww
 const PAPER = ["kkkkkkkkkk", "kcccccccck", "kckkkkkcck", "kcccccccck", "kcssssscck", "kcccccccck", "kcssssccck", "kcccccccck", "kkkkkkkkkk"];
 const CAL = ["  kk    kk  ", "kkkkkkkkkkkk", "krrrrrrrrrrk", "kkkkkkkkkkkk", "kcccccccccck", "kcscscscscck", "kcccccccccck", "kcscscyyscck", "kcccccyyccck", "kcscscscscck", "kcccccccccck", "kkkkkkkkkkkk"];
 const COIN = [" kkkk ", "kyyyyk", "kyyyyk", "kyyyyk", "kyyyyk", " kkkk "];
+const GATE = ["kk          kk", "kdk        kdk", "kdkkkkkkkkkkdk", "kdk        kdk", "kdk        kdk", "kdkkkkkkkkkkdk", "kdk        kdk", "kdk        kdk", "kdk        kdk", "kdk        kdk", "kkk        kkk"];
 const TOMB = ["  kkkkkk  ", " kcccccck ", "kcckkkkcck", "kccckkccck", "kccckkccck", "kcccccccck", "kkkkkkkkkk"];
 const CROWD = ["#f5a3b5", "#3b8cff", "#5ec99a", "#f2cf6b", "#a394ee", "#f5a06e", "#6fc9dc", "#f07c7c"];
 const art = (rows, cls) => artSvg(rows, PAL, "css", cls);
@@ -105,7 +106,7 @@ function howHtml(box, F) {
     )
   ) + (box.slot_grave_hours != null && box.max_hakos != null ? page(
     "h-slot",
-    sp("tomb", 12, art(TOMB)) + sp("clock", 9, item(F, "clock")) + `<b class="ar a3">\u2192</b>` + sp("again", 12, castSvg("egg", 4)),
+    sp("tomb", 12, art(TOMB)) + sp("ghost", 10, castSvg("ghost", 4)) + sp("gate", 16, art(GATE)) + sp("again", 12, castSvg("egg", 4)),
     L(
       `\u7BB1\u5EAD\u306B\u3044\u3089\u308C\u308B HAKO \u306F ${box.max_hakos} \u5339\u307E\u3067\u3067\u3059\u3002\u304A\u5893\u306E\u307E\u307E ${fmt(box.slot_grave_hours / 24)} \u65E5\u305F\u3064\u304B\u3001\u751F\u307E\u308C\u3066\u304B\u3089 ${box.slot_nomeal_hours} \u6642\u9593\u3054\u306F\u3093\u3092\u4E00\u5EA6\u3082\u98DF\u3079\u306A\u3044\u3068\u3001HAKO \u306F\u7BB1\u5EAD\u3092\u96E2\u308C\u3001\u6B21\u306E\u4EBA\u306B\u5834\u6240\u3092\u3086\u305A\u308A\u307E\u3059\u3002`,
       `The garden holds up to ${box.max_hakos} HAKOs. If a HAKO stays in a grave for ${fmt(box.slot_grave_hours / 24)} days, or never eats in its first ${box.slot_nomeal_hours} hours, it leaves the garden and makes room for someone new.`

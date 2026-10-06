@@ -260,7 +260,12 @@ body[data-tab=garden] #story,body[data-tab=garden] #how,body[data-tab=story] #li
 /* 6 お墓と生まれ変わり */
 .s-grave .tomb,.h-grave .tomb{left:20%}.s-grave .ghost,.h-grave .ghost{left:35%;bottom:40%;opacity:.8}.s-grave .a3,.h-grave .a3{left:53%}.s-grave .again,.h-grave .again{left:66%}
 .s-grave .again .mv,.h-grave .again .mv{opacity:0}
-.h-slot .tomb{left:14%}.h-slot .clock{left:34%;bottom:46%}.h-slot .a3{left:53%}.h-slot .again{left:66%}
+.h-slot .tomb{left:16%}.h-slot .ghost{left:16%;bottom:34%}.h-slot .gate{left:68%}.h-slot .again{left:16%}
+.page.in.h-slot .ghost .mv{animation:leave 7s ease-in-out infinite}.page.in.h-slot .tomb .mv{animation:tombgo 7s ease-in-out infinite}.page.in.h-slot .again .mv{animation:nextin 7s ease-out infinite}
+@keyframes leave{0%,10%{opacity:0;transform:none}18%{opacity:.85;transform:translateY(-12%)}30%{transform:translate(120%,-20%)}42%{transform:translate(260%,-8%)}52%{opacity:.85;transform:translate(470%,-14%)}64%,100%{opacity:0;transform:translate(700%,-14%)}}
+@keyframes tombgo{0%,40%{opacity:1}52%,94%{opacity:0}100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.h-slot .ghost{left:44%}.h-slot .again{display:none}}
+@keyframes nextin{0%,62%{opacity:0;transform:translateY(14%) scale(.7)}70%{opacity:1;transform:translateY(-4%) scale(1.06)}74%,92%{opacity:1;transform:none}98%,100%{opacity:0}}
 .page.in .ghost .mv{animation:drift 7s ease-in-out infinite}
 .page.in .a3{animation:fadein .6s 1.2s both}
 .page.in .again .mv{animation:popin .7s 2s both,rock-rest 5s 2.8s infinite}
